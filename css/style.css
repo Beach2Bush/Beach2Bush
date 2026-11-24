@@ -1,8 +1,8 @@
 
 :root { --navy:#0b2740; --navy2:#123a5c; --blue:#1e88d2; --amber:#f5a623; --bg:#f7f9fb; }
 * { margin:0; padding:0; box-sizing:border-box; }
-body { font-family:'Segoe UI', system-ui, -apple-system, Arial, sans-serif; background:var(--bg); color:var(--navy); line-height:1.6; }
-.hero { text-align:center; padding:64px 20px 40px; background:linear-gradient(180deg,#ffffff,#f7f9fb); }
+body { font-family:'Segoe UI', system-ui, -apple-system, Arial, sans-serif; background:#ffffff; color:var(--navy); line-height:1.6; }
+.hero { text-align:center; padding:64px 20px 40px; background:#ffffff; }
 .hero .logo { max-width:440px; width:70%; height:auto; }
 .tagline { color:var(--navy2); margin-top:8px; font-size:1.05rem; letter-spacing:.5px; }
 nav { display:flex; justify-content:center; gap:36px; padding:14px 0; background:#fff; border-bottom:1px solid #e3e9ef; position:sticky; top:0; z-index:5; }
