@@ -1366,44 +1366,7 @@ function openBuildUI() {
 function toast(msg, kind) {
   var t = el("div", "toast " + (kind || ""), msg);
   toastsEl.appendChild(t);
-  setTimeout(function () { t.classList.add("out"); }, 3200);
-  setTimeout(function () { t.remove(); }, 3800);
-  while (toastsEl.children.length > 4) toastsEl.firstChild.remove();
-}
 
-// ---------- boot ----------
-function init() {
-  canvas = document.getElementById("game");
-  ctx = canvas.getContext("2d");
-  modalEl = document.getElementById("modal");
-  toastsEl = document.getElementById("toasts");
-  resize();
-  loadSprites(bootWorld);
-}
-function bootWorld() {
-  var hadSave = loadGame();
-  if (!hadSave) {
-    genMap(); placeWorld();
-    // starter gear
-    player.equipment = { weapon: null, head: null, chest: null, legs: null, gloves: null, boots: null, shield: null };
-    player.inv.seeds = 3;
-    toast("Welcome to Bright Hollow. Click anywhere to walk; click things to use them.", "info");
-    setTimeout(function () { toast("Talk to Elder Rowan by the fire to start.", "quest"); }, 2500);
-  } else {
-    toast("Welcome back. The campfire kept burning.", "info");
-  }
-  updateHud();
-  bindUi();
-  setInterval(function () { loop(performance.now()); }, 33);
-  setInterval(saveGame, 10000);
-  setInterval(function () { respawnTick(); }, 1000);
-  setTimeout(function () {
-    var d = document.getElementById("help");
-    d.textContent = "SPR:" + Object.keys(SPR).length + " cv:" + canvas.width + "x" + canvas.height +
-      " fr:" + frames + " cam:" + Math.round(camX) + "," + Math.round(camY) +
-      " p:" + (isFinite(player.x) ? player.x.toFixed(1) : "NaN") + "," + (isFinite(player.y) ? player.y.toFixed(1) : "NaN") +
-      " objs:" + objects.length + " t0:" + (terr.length ? terrainAt(20, 20) : "empty");
-  }, 2000);
 }
 function resize() {
   canvas.width = Math.max(320, Math.floor(window.innerWidth));
