@@ -45,21 +45,33 @@
 </footer>
 
 <script>
-// Drop photos in images/gallery/ named in order and list them here, or just fill this array.
+// Posted shots from beach2bushonline. Every insta post lands here with its caption.
 const photos = [
-  // "images/gallery/IMG_9605.jpg",
-  // "images/gallery/IMG_7807.jpg"
+  { src: "images/gallery/img9605.jpg", cap: "23 flavours, ice cold at ringside." },
+  { src: "images/gallery/img9569.jpg", cap: "One old fella still standing, bare bones against the clouds. Best view in the paddock." },
+  { src: "images/gallery/img9570.jpg", cap: "Two old gums holding court under a sky that kept showing off all arvo." },
+  { src: "images/gallery/img7775.jpg", cap: "Go Speed Racer go. The Mach 5 in the flesh." },
+  { src: "images/gallery/img7736.jpg", cap: "Bonnie and Clyde spec: 1930s Ford, bullet holes included." },
+  { src: "images/gallery/img3025.jpg", cap: "From flat steel to finished blade. Hand-forged, hand-ground, resin poured and pinned." },
+  { src: "images/gallery/img3052.jpg", cap: "From flat steel to finished blade. Hand-forged, hand-ground, resin poured and pinned." },
+  { src: "images/gallery/img3056.jpg", cap: "From flat steel to finished blade. Hand-forged, hand-ground, resin poured and pinned." },
+  { src: "images/gallery/img3064.jpg", cap: "From flat steel to finished blade. Hand-forged, hand-ground, resin poured and pinned." },
+  { src: "images/gallery/img7735.jpg", cap: "The one cab in Gotham you never get in." },
+  { src: "images/gallery/img7796.jpg", cap: "The whole crew rolled up together." },
+  { src: "images/gallery/img7807.jpg", cap: "The '89 Batmobile on the red carpet. Still the best looking thing in Gotham." }
 ];
 const grid = document.getElementById('grid');
 if (photos.length === 0) {
   grid.innerHTML = '<p class="empty">First gallery drop coming soon.</p>';
 } else {
-  photos.forEach(src => {
+  photos.forEach(p => {
     const fig = document.createElement('figure');
-    fig.innerHTML = '<img loading="lazy" src="' + src + '" alt="Photograph"><figcaption></figcaption>';
+    const alt = p.cap.replace(/"/g, '&quot;');
+    fig.innerHTML = '<img loading="lazy" src="' + p.src + '" alt="' + alt + '"><figcaption>' + p.cap + '</figcaption>';
     grid.appendChild(fig);
   });
 }
 </script>
+
 </body>
 </html>
