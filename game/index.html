@@ -1465,6 +1465,10 @@ function init() {
   }
   updateHud();
   bindUi();
+  // autosave: every 20s, and when the page is hidden or closed
+  setInterval(saveGame, 20000);
+  window.addEventListener("pagehide", saveGame);
+  document.addEventListener("visibilitychange", function () { if (document.hidden) saveGame(); });
   loadSprites(function () { requestAnimationFrame(loop); });
 }
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
