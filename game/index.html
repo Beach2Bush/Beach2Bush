@@ -1407,14 +1407,22 @@ window.addEventListener("resize", resize);
 
 var lastT = 0;
 function loop(t) {
-  var dt = Math.min(0.05, (t - lastT) / 1000 || 0.016);
-  lastT = t;
-  gameTime += dt * 1000;
-  moveTick(dt);
-  enemyTurn(dt);
-  petTick(dt);
-  for (var i = floats.length - 1; i >= 0; i--) { floats[i].t -= dt; if (floats[i].t <= 0) floats.splice(i, 1); }
-  draw();
+  try {
+    var dt = Math.min(0.05, (t - lastT) / 1000 || 0.016);
+    lastT = t;
+    gameTime += dt * 1000;
+    moveTick(dt);
+    enemyTurn(dt);
+    petTick(dt);
+    for (var i = floats.length - 1; i >= 0; i--) { floats[i].t -= dt; if (floats[i].t <= 0) floats.splice(i, 1); }
+    draw();
+  } catch (err) {
+    var d = document.getElementById("help");
+    d.style.background = "#5a1a1a"; d.style.color = "#ffd";
+    d.textContent = "ERR: " + err.message + " :: " + String(err.stack || "").split("\n").slice(0, 3).join(" | ");
+    console.error(err);
+    return;
+  }
   requestAnimationFrame(loop);
 }
 function bindUi() {
