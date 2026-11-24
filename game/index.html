@@ -1,0 +1,1431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Bright Hollow</title>
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#1a2b22; overflow:hidden; touch-action:none; }
+  #game { display:block; width:100vw; height:100vh; image-rendering:pixelated; }
+  #hud { position:fixed; top:8px; left:8px; right:8px; display:flex; gap:6px; align-items:flex-start; z-index:10; pointer-events:none; }
+  .hudbox { background:rgba(16,20,16,0.82); border:2px solid #3a4a3a; border-radius:8px; padding:6px 8px; color:#e8e2d0; font-family:monospace; font-size:13px; pointer-events:auto; }
+  #hpwrap { min-width:130px; }
+  #hpbar-bg { background:#40232a; height:10px; border-radius:5px; overflow:hidden; margin-top:3px; }
+  #hpbar { background:#e05a5a; height:100%; width:100%; }
+  #quests { margin-top:4px; font-size:11px; line-height:1.5; }
+  .qitem { color:#e8c96a; }
+  .qitem span { color:#b8b2a0; }
+  .qitem.done { color:#7bc96f; text-decoration:none; }
+  .hbtn { cursor:pointer; user-select:none; }
+  .hbtn:active { background:rgba(60,80,60,0.9); }
+  #toasts { position:fixed; left:50%; bottom:84px; transform:translateX(-50%); z-index:20; display:flex; flex-direction:column; gap:6px; align-items:center; pointer-events:none; width:min(92vw, 420px); }
+  .toast { background:rgba(16,20,16,0.92); border:2px solid #3a4a3a; border-radius:8px; padding:8px 12px; color:#e8e2d0; font-family:monospace; font-size:13px; text-align:center; transition:opacity .5s; max-width:100%; }
+  .toast.warn { border-color:#8a7a3a; color:#f0dc9a; }
+  .toast.item { border-color:#3a6a4a; color:#b8e6c0; }
+  .toast.loot { border-color:#6a5aaa; color:#d0c2ff; }
+  .toast.quest { border-color:#8a6a2a; color:#ffd98a; }
+  .toast.build { border-color:#3a5a8a; color:#a8c8ff; }
+  .toast.level { border-color:#caa53a; color:#ffe08a; font-weight:bold; }
+  .toast.bad { border-color:#8a3a3a; color:#ff9a9a; }
+  .toast.out { opacity:0; }
+  #modal { position:fixed; inset:0; background:rgba(6,10,8,0.6); z-index:30; display:none; align-items:center; justify-content:center; padding:14px; }
+  .panel { background:#20281f; border:3px solid #4a5a42; border-radius:12px; padding:14px; color:#e8e2d0; font-family:monospace; font-size:13px; max-width:440px; width:100%; max-height:78vh; overflow-y:auto; position:relative; }
+  .panel h3 { margin:0 0 8px; color:#ffd98a; font-size:15px; }
+  .panel .sub { color:#9aa08e; font-size:11px; line-height:1.5; margin-bottom:8px; }
+  .panel .lore { color:#c8c2ae; line-height:1.6; font-size:12px; background:#1a211a; padding:8px; border-radius:6px; border-left:3px solid #6a7a5a; }
+  .row { display:flex; gap:8px; align-items:center; justify-content:space-between; padding:5px 0; border-bottom:1px solid #2a332a; }
+  .row:last-of-type { border-bottom:none; }
+  .btn { background:#3a4a3a; color:#e8e2d0; border:1px solid #5a6a52; border-radius:6px; padding:6px 10px; font-family:monospace; font-size:12px; cursor:pointer; white-space:nowrap; }
+  .btn:active { background:#5a6a52; }
+  .btn.off { opacity:0.45; }
+  .xbtn { position:absolute; top:8px; right:8px; background:#3a2020; color:#e8b0b0; border:1px solid #6a3a3a; border-radius:6px; width:26px; height:26px; font-family:monospace; cursor:pointer; }
+  .mat { display:flex; align-items:center; gap:6px; }
+  .icon { width:20px; height:20px; image-rendering:pixelated; vertical-align:middle; }
+  .gearitem { border:2px solid #555; border-radius:8px; padding:6px 8px; margin:6px 0; display:grid; grid-template-columns:1fr auto; gap:2px 8px; }
+  .gearitem.empty { opacity:0.5; }
+  .gname { font-weight:bold; }
+  .gstat { color:#9aa08e; font-size:11px; grid-column:1; }
+  .gflav { color:#7d8478; font-size:10px; font-style:italic; grid-column:1; }
+  .gact { grid-column:2; grid-row:1 / span 3; display:flex; flex-direction:column; gap:4px; }
+  .skillrow { display:grid; grid-template-columns:auto 1fr auto; gap:8px; align-items:center; padding:3px 0; }
+  .skbar { background:#1a211a; border-radius:4px; height:10px; overflow:hidden; }
+  .skbar div { background:#7bc96f; height:100%; }
+  .skxp { color:#9aa08e; font-size:10px; }
+  .statline { color:#ffd98a; padding:4px 0; }
+  #floats { position:fixed; inset:0; pointer-events:none; z-index:5; }
+  #help { position:fixed; left:8px; bottom:8px; z-index:10; color:#c8c2ae; font-family:monospace; font-size:10px; background:rgba(16,20,16,0.6); padding:4px 8px; border-radius:6px; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="hud">
+  <div class="hudbox" id="hpwrap">HP <span id="hptext"></span><div id="hpbar-bg"><div id="hpbar"></div></div><div id="quests"></div></div>
+  <div style="flex:1"></div>
+  <div class="hudbox hbtn" id="bagbtn">🎒</div>
+  <div class="hudbox hbtn" id="gearbtn">⚔</div>
+  <div class="hudbox hbtn" id="skillsbtn">Skills</div>
+  <div class="hudbox hbtn" id="savebtn">💾</div>
+</div>
+<div id="floats"></div>
+<div id="toasts"></div>
+<div id="modal"></div>
+<div id="help">click to walk · click trees/rocks/bushes/pond/plots to work · talk to the folk · 💾 saves</div>
+<script>
+var ASSETS = {"grass1": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAk0lEQVR4nJWTSw6AIAxER5Ym1Mt6Cg/oPRwSt7rCFFr5zI4m8wqdshzn/jARLfG6Idv6nSUKmAiJgtAzAyjMAJA9TETwus3IAHK3DJIo9kaqZgAG5DxR134Bo5oG1DPqArTBi7MLKAxOnC5gJsoCkOOpOw0DRrayCZjV0BBrFakkInirqjuYmpoPr7v9G3szkW3FCyWyQZ9Z9TTjAAAAAElFTkSuQmCC", "grass2": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAApElEQVR4nKVTuw6DMAx0IwYGHpHab+Qr+oP8Q9WBGSRKMmSj04EwxgZxU+TH2XdyHu+2mekGnFXga28TxJAOC8bfaBMUZW4tohPcgfO13+nsh2lXyGPoySSNr2e1vGNIVJT5Jka0eqNKQLMGleCMuSKB5MElAq5XAm7HYRpc1Y4KuX6YFnkO0+CqplvKZeauDPxmRA+OPlAMiT7fziaAHO6HdFB/KUo7yJDkxcQAAAAASUVORK5CYII=", "grassd1": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAkElEQVR4nKVTyQ3AIAxz80IRA3WEjtD9Z0BRf+2jMkIoXK0/8HCM44RtP48bAK5kCFExQs0TXmaKPZ40eNNYElDHpQBvXzMFlixzeQrw9uWpmyPMDHhKj9xyVjrsZtCaDN1aMohnfQS61aiQMpgvQjnEr1hepNrtskA58ostjF70FopiQ4EQ1d0R4tdf0Kh4AL+eO3Oxpab7AAAAAElFTkSuQmCC", "grassd2": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAArklEQVR4nKWSQQ4CIQxFn8SYWRFjPIxH8Ajef00mpHHRsNGFGe0AxYn+FQH6+O1nd7ldH3RUVDlMU7OuFbq7sCrQu3rXPoCi/UuSMvF8BCCeog/wLC7FADKLD/hFkrIPkJQpql3b1t1+dAh921Z/tdAAJOXWyaCFBmAnDq9oZZYGYiMftrBEW8/BRj4EeJ/LKlh7tVX7Um8+AMHaW62rgno+b4BnzSvYDIDvEQI8AZjHPj2sVIUqAAAAAElFTkSuQmCC", "path": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAiUlEQVR4nGM8sqjgPwMFgAmf5KdPXygzgI+Ph6ABLFg1CvAxfPrwCUP8yZNXcLaMjBhuF2DTjAvg9QIxgAWXc7EBmLNRDEDW/OnTF4ZPn77h1YAOULxATKjDLMJqALEA2SKMaCTG2ciAoAsIpUasBvAJ8MFpQuGCNyERE71MMNvIBUykJFts4QEA0EAtQb9DEngAAAAASUVORK5CYII=", "water": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAaklEQVR4nGO0a9j3n4EIICDAz/Dhw0cMcSZiNDIwMGDVTJQBuDTCAAuMIScnhyH56NEjgnIsML/BBLABfHJMhJxICBAMg8FvAOWxgC6ADeCNBWKciQsICPBTZsCHDx8HUxjAch06wCUOAwCFyTaLlDku7wAAAABJRU5ErkJggg==", "tilled": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAKUlEQVR4nGPM8DL6L8THxcDAwMDw7tM3BlLZTAwUglEDRg0YNWCwGAAAqiARA0i1eLsAAAAASUVORK5CYII=", "flowers": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAa0lEQVR4nGOsOZn2n4ECwESJZvob0Gw2E78B2BQgg9/XvRnqeJ/gNuChozdDSjmqAkKAhRTFTZ9l8BswpxNTASFA21ggFKgEDfj48SNDiXoXXoPJ8gJybOGNhZ6bZQQNIykaYQA5tgY+MwEArkMb5LS9XHgAAAAASUVORK5CYII=", "tallgrass": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAMklEQVR4nGOsOZn2n4ECwESJ5kFmwJP7rxhIYVPfBTKKYnAbiGFT3wWjBgxlAxgpzc4AKDEcJ8U8EA8AAAAASUVORK5CYII=", "dirtspot": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAlklEQVR4nGPMC7D4z0ABYMIl8enLD6xi6OIsuAzg4+EgSgzuAmw2EgPgLkA3/dmbTyh8Hg42rC7A8AJMo5aSBIbia/deMDAwMDBIifBhN+DZm09YNcIATO7avRdwQ3DGArEAbgAh29FdAvMq9VxAsQFSInzwUCYEqBqI8Gj89OUHiitITgewVAaTxOYdZI0YBhCjGBsAAFB2NckN9WV3AAAAAElFTkSuQmCC", "tree": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAaCAYAAAC+aNwHAAAA8klEQVR4nO1UOw6CQBB9EKqNBaGwMIaQrSwoPciexZNReQ4LCqsNIVQWxMJQmWCBs2F/iGJi4+t2Pm/ezM4u8GsEPkeaZ71pq8vKio98iZvDXrNfZYsU6E2iyExmgiPmiaUo5gkgnnFATySWAkreZVtlO1eN8l1lq8WH4+oke5xsnmOegAmuWg2xEBFVZ4K/lcgERwr0TgXUs+9sKZhD4oOmwJywC95bmEPi8oXAsFldIScDTVtXSNRlFXhnMKcdpcClYgpUXSP4FNbzpBV1LRYpHL/G7/8HhDy6I12vhsTLDcdT4yy2eAZ/golbAIbpv8IDFXRl3wY4oZQAAAAASUVORK5CYII=", "treed": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAaCAYAAAC+aNwHAAAA60lEQVR4nO1UPQ+CMBQ8SIcOhoEQh8Y0ppMDo7/d3+HATAghDIYwGAcGkzpAK6Utopi4eFtf39279/oB/BqBb4OnezmNlVlh5RMfkR4PRrxrr+CAnAoRiywYaBxZjmgcoVN5gFQilgNFTnaJjjVV8xRpr0Z+OK6ubI/J0zWNI0Aw3WqIlSCqOgR7jykYOCCdDlTPvrXlYImID4aD6YRd8J7CEhHXXggMNyuvZxOtWF6jzIrAO4Ml7WgHLhezGKobAp/Cep76Gbsu1uBw/Bq//x8opOQOvt30xMsNp3PlLLZ6Bn+BmVMA+um/wgNAD2FfrMzzTAAAAABJRU5ErkJggg==", "stump": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAMCAYAAABr5z2BAAAAiElEQVR4nGNgGAWMuCRCrFT+o4utOXYHQz0LLo1uVhoMDAwMDMfO3WOwMlKCSf9HN4gJXbOajBBcMzpws9JgUJMRQnEdE7pmBTkxXL5iYGBgYFCQE0MxhAldwYNHr/AagC4PN2DNsTuMt568w2sITPzWk3fwcMAIVZjT1GSEMAyAWYAciBRHIwCs2zZpTABLEAAAAABJRU5ErkJggg==", "rock": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAOCAYAAAAmL5yKAAAAgUlEQVR4nLWSwQ2AIAxFP8QhCDMwESdH48REncGwhV6sqUWKifFdyXs/IQX+Jud1t979TE4pmZFhgOUQIqzIY4Blxop0AS3PIrfASJboyBV4I4cQu4ibySxJWtsAAESExZwciCzXWpwHgFqLIyJTlLLEPCS9qteB8w+Y2dlKOPCZA6Q6Rgj1b4qiAAAAAElFTkSuQmCC", "berry": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAOCAYAAAAmL5yKAAAAy0lEQVR4nNWSoRmDMBCFf/ohGCCCARAMgGAABohEIpCIjlKBRFQiMwADVHSACgZAMACOipYQQlLfk5d7L+/dPfj7CnwPaZWtdu91f57mQx8wTsShr5qenGK1iQIfUDU9si3p1AJALSNNNo2zVnRQECdCAySlzx2P20B+LXYLaZWttuStzJ9N8jgRUGXrxQUwQarpvUoATgTmb51akO1upZYRYlCHuRC+W/1hw5YPn0WeljiNs76CacOu7QrgCJIvBybQmQMfkVmuJL4BoORPL/Xmk9cAAAAASUVORK5CYII=", "wheat0": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAKUlEQVR4nGNgGAWjgFag4kTef1L4FGlmQjfgxat3JPExDCAVDLwBFAMAnzQYVy0l774AAAAASUVORK5CYII=", "wheat1": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAIElEQVR4nGNgGAWDDFTsS/lPLB/GZqLU0lEDhoUBFAMA9ZwKdcFR7eQAAAAASUVORK5CYII=", "wheat2": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAQ0lEQVR4nGNgGFRgVZfVf2L5MDYjsoCdjRrDoSO3GMLKjjHi4zMwMDDA2EwD7gUUF0hJ8TEQy4exKfbCqAHDwgCKAQBooirzpCB+IwAAAABJRU5ErkJggg==", "tent": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABIAAAASCAYAAABWzo5XAAAAcElEQVR4nGNgGJLgxLqS/4TUMBFSMK3G7z8yTbZBxAK8Bk2r8fvv42PDwMDAwODjY4PXVbR3EbJrYACfq2jrImyuIeQqDIPwGYLPMNp4jRjX4HIV9V1EimuwuYpqLmKEuQafIiMjNYZz525Ry078AACCnjOG22jPnQAAAABJRU5ErkJggg==", "campfire": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAOCAYAAAAmL5yKAAAAhUlEQVR4nGNgGGjAiEvi1zKT/+hibFFnMNRjNQCmmdVAAy72+8INrIYw4XIBsmZsfJwGwGyH2YjuAmxewwsSHDT+wzCMjyzPgksTjL3gwA2cAY1hAEzjq0/f4GJeRnJ4nYxiwKtP3xhUpAQY+HjYcGq48+wDCh9nLBALKDYAIxDRnUhzAACGuzCzT4kOdAAAAABJRU5ErkJggg==", "store_chest": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAANCAYAAACgu+4kAAAAZUlEQVR4nGNgGGjAyMDAwKChIPWfHM03HjxjZIFxuhJMSNJctuAMAwMDAwMTOTYjA7xeOLHEDM62iDmFIY/ihTwPFbw2octP2nGHgYGBCl6g2AAWfJLLlryjvQtoG42EwI0HzxgBd3QYLHmRlEQAAAAASUVORK5CYII=", "gear_chest": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAANCAYAAACgu+4kAAAAZUlEQVR4nGNgGGjAyMDAwKChIPWfHM03HjxjZIFxglLqSNK8bk4TAwMDAwMTOTYjA7xemLZkC5ydFeODIY/iBQuPJLw2ocuf2DGPgYGBCl6g2AAWfJKLlqyjvQtoG42EwI0HzxgBUDwX8FsMhvcAAAAASUVORK5CYII=", "blueprint": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAASCAYAAABSO15qAAAAb0lEQVR4nGNgoBAwMjAwMEzrKflPrgEsMEZETBLJmlcsmYcwgIGBgSFnwguiNU8pkEB1AbIgKYCJZB1oAMUFm9atIlqjX1AYpgEwQVLAqBeQXLBiyTyyDGDEJpgXYALPG5M2nGFE5yOrpdgLw8AAAO4SG7jKnQ6iAAAAAElFTkSuQmCC", "workbench": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAMCAYAAABr5z2BAAAAgElEQVR4nGNgoBAwInMSEjL+oytYsGAGI7oYMmCiigtW1QT9Z2BgYNj2RAxDgZfMK5yaw1rWMbIQqxgXYGFgYGDYdeIGg54Spu34wKV7rxAGIINn777A2VJCPATFKQ5EuAtgThIR4MJwJj5xjDiuCDGBp4WONWcYCYlT7AWKDQAAYckn8M+PAWoAAAAASUVORK5CYII=", "pet_pen": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABYAAAAPCAYAAADgbT9oAAAAc0lEQVR4nGNgGHIgwUnrf4KT1n9qizNR36kQwDgtzwPDdmoAllNXHjEwMDAwLNh3jRFZAuYtcsVpFhQs+CTLavwYymr8sAYVTFzLqYMRm/zARJ5DgAFBAw5suIBVHG/kEWNw1qQdjDD1yObQLChoZvDQAwA1tzpkAB6yEwAAAABJRU5ErkJggg==", "hut": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABYAAAAYCAYAAAD+vg1LAAAA0UlEQVR4nGNgIAFUmGj9J1YtEymGWsmIEW04UQbDDGVgYGAg1nCCBiMbCgPEGM6ILnAmygNDw7NvP7BqPvbkFUPHmWsYZjAwkBDG2AA+l1NkMD7DUQwmJTkRMhxuMLZIosRwRmoYigxgEcpIrvcJAUYGBgaGHC+D/yZaClQx8My1BwxTtl1gZEGX+MbHhcLn+vSNLAuwJjcfHzcGHx83sgyEAQwXYwMHzt3BEHMwUiHd4C1bdhFjH2kGkxum6IDiLD1q8DA0GJ7czlx7QJJGQuoB/1hG56ebM3kAAAAASUVORK5CYII=", "cave": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABoAAAAYCAYAAADkgu3FAAAA7UlEQVR4nOWVTQqDMBBGvxZPICKuQ/AMIp6geCjXPY/0BKWIByhFQk5Q5grtQgyxTeJPU7voWwXN+Pgmju6q6viAZ4TowHk6urb3LQHwJvmayMQfiITothGZDtIHwZoiovui/UKIXjS3kIhwu45bmxfZrNqgbRtwzp2bLucGACCl/fymhKp1RIQwDI0Sl0C/55Kpl8Ek8YlzjqbS6EjZqRYvFvnEKlqSZsCV6veJXjmU5TaiU11vI/oUqygvMjBm/8DqrRzWjKXWoV2dSG/lnLY6RVOpdFxpJkU+CYD+f2EjTiK1Ng3wkDhOIudzngLAVMHQkHI4AAAAAElFTkSuQmCC", "coin": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAYklEQVR4nGNkgIIVdTL/GZBARNMTRgYGBgYWmKSHmwqyPMMKBob/EU1PGBmxScLAjl13ICYwMDAw8Kv4oEh+vLOFAW4FsgA6YMIqiqwgoukJ445dd7DaH9H0hJER7moc3gQAmEQhSR4zTAEAAAAASUVORK5CYII=", "mushroom": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAZ0lEQVR4nGNkQALT1HT+M6CBrFtXGBkYGBgYkRXZiIigq2M48uYNQ9atK4yM6Ip0j+5nuGztiKGYCd0EdEUwgKEQGege3Q9nk+ZGZMXoCmG+xgBbNiz4/+zRpf9bNixA0YTXjWQpBABu/iqUZkQX2wAAAABJRU5ErkJggg==", "note": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAMCAYAAABbayygAAAATUlEQVR4nGNgIBIwwhhbllT8x6XIJ6aDkQVZwMrODUPRsUO7GBgYGBhY0CVWLJiDwpdTksOuMCIhBauJTLjchQ4G0GrqK0RxI8w92AAA6G8UpPEdbUAAAAAASUVORK5CYII=", "elder": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAASCAYAAABvqT8MAAAAeklEQVR4nGNkQAInTpz4z4ADWFhYMDIwMDAw4VKAC9BeAwsyZ8OkOoZlR24wHJpTARezS+lgiLLRwG0DsmJsfBQbGBgYGLgNAzDdsWADdhtW3MOiGE2czqHEwMDAEFt6gzQNDAwMDP+uZCCcoDODMicNSw03btzAywcArLIe2k2lrxcAAAAASUVORK5CYII=", "druid": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAASCAYAAABvqT8MAAAAvUlEQVR4nGNkQAIJbjr/GRgYGA5p8MDF7G58YWBgYGBYsOsKIwMDAwMLsgaYQpgiFM27IBQTAxpAVoyND9eglGfxH10SWZNSnsV/DCdJiEgxLDtyg+HQnAqE4pQOhigbDQYGhk+oNtybdIKRgYEBRTEyHyaP4QdCAEXDKpFPDDMWbEBRMGPBBoZVIp/gfBQ/MDAwMFyykULRdMlGioHhBh4NcEXEOIkYgNWGP/OOIRQkWVFmw7DUcOPGDbx8AOyAPVRqFIMZAAAAAElFTkSuQmCC", "tinker": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAASCAYAAABvqT8MAAAAlElEQVR4nGNkQAIn8oz+M+AAFpPOMTIwMDAw4VKAC5CsgQVdoI6hCUNRE0Mddhs2vBFhuLEhC0XxjQ1ZDBveiOB2kkbANLx8DCfN8nmE4aQZCxBsFBu4vt1gmLFgA5riDQxc327gtsFIjgFFk5EcA8MNhHpMDTBFuADl8cDAwMAwZ88DODvFRYEyG4alhhvIsYSFDwDtriamfqnaLgAAAABJRU5ErkJggg==", "slime": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAJCAYAAAAGuM1UAAAAhklEQVR4nGNgIBEwogtY9Lj9Rxc7UbILro4FXbGGhQZDkU4GAwMDA0PflRkQiR6G/zBNTLgUMzAwwNkaFhpwmxmRFcPAloBlDPvuHGLouzKDYUvAMgafDVEMDAwMDDdO3MCuARe4ceIGxEknSnYx3jhxg6DiEyW7GOF+wKcJphjuB2RAKFgBnLc9HtEgdMsAAAAASUVORK5CYII=", "wisp": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAKCAYAAACALL/6AAAAmUlEQVR4nGNggIKKqC3/GfAAmDwjuuCbN28wFIuIiDB0LPNhZGBgYGBBlnjz5g2DiIgIg5yIBlzs0ZsbDMiGwG1IcVvw30jDBqeTzt04wjBnVwIjE7rilCZlFIUwvpGGDUOK24L/TOgmzam7i5ePoYEQYGJgYGCYsyuB8dyNI3gVoviBkCaYYgYGtHhgYIAEALoYTDEDAwMDAL9EPCKBHdQFAAAAAElFTkSuQmCC", "egg": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAMCAYAAABbayygAAAAXklEQVR4nGNgoDZgRBc4smXafxjbxicLQx6u6MOzC3CMrIkJWZGOkRXDsjnz4Bp1jKzgNjAiK8IFrpw7hjCREMCpENkJeBVGpSRhKrTxyWK8cu4YTvdhBBO+4CE6wAFP7UMN4Rc7GwAAAABJRU5ErkJggg==", "pet_wolf": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAA4AAAAKCAYAAACE2W/HAAAAfElEQVR4nJ1QsQ2AMAxzECcgxh4R9QZmjujMMZ0zM6IcgvpSGVAlCFSieEtsx4oBgxCWbHdvXPfH9DACwDCO1QNXjr6kWYhE6q2JPb+K055ucxfCktkz2DNU12qK6oqim6Y5UzG2QDd9lvMFzrmznNYfRSKRFdTaFYk37QE3PTG1Y//HtQAAAABJRU5ErkJggg==", "pet_chick": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAKCAYAAACALL/6AAAAfklEQVR4nGNgoBb4UGHzH5s4EzbBEwuM/iPTyIARm0KNG1xwsRsa3xgYGBgYLBLOMaJoOLHA6L+egRxOJ1668IjBIuEcI4aT5FyO4OVjaHi0xwYvH6un8QGsnkb2y6ULjxgYGLB4GgY+TIOE/w0uSOhofIOEmEDWEUYGBgYGAJJ3KeJ5nV3IAAAAAElFTkSuQmCC", "player": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAA4AAAASCAYAAABrXO8xAAAAtUlEQVR4nGNkQAM2Bhr/0cVg4MiFG4wwNhMuRYQA/TVigGl5If8fbZv0X05O7v+jbZPg7Gl5ISh+x2njkRklWNk4NWZNWsO4ZcchFLEtOw4xZE1aw4gshsJhYGBg6NGDRAeXgw5c7NuBKwwMDAwMJZcQ0cGITZOFhAiG0068eIOieQjFI9kasYbqmn//MBSGMDHhDlUYsNBR+y8hJgTnv3j1juHElVsoaunvRxZcEi9evcOrEQBWiz8JPb69WQAAAABJRU5ErkJggg==", "i_wood": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAYAAABWdVznAAAAX0lEQVR4nGNgoCuoCDH6T3VNjAwMDAwpLhooikQEuBjefPiGoXjOnhuMLDCOkYoYhgI5ER44+9ydVwwMDAwMTLislhPhYXj05guGOE4NuADcSTArsQFs/sELaBLcOAEA3igapsEIGrIAAAAASUVORK5CYII=", "i_stone": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAYAAABWdVznAAAAX0lEQVR4nK2RsQ3AMAgEH+ZhKJcZySVD/T5JE6TIhoQiV1p3NsjAX4xxnNm5VrKZpdEWhAwAWaSVHKyRvslZJF/yE5L50pXsPkUBwH0KyVbYeiFuB+4dguqzYorWCCsX2oEtMlFzwL0AAAAASUVORK5CYII=", "i_clay": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAYAAABWdVznAAAAV0lEQVR4nGNgGHSAEZtgk5/Jfxi7btMZFDWM2BTqyYnBxS49eoWikQnddGTF2PhwDU1+Jv/RJZE1wWzHsIEQIF9D3aYzjDAPooNLj17h9jS6JnQ+yfEAAIB+IxAuXWrSAAAAAElFTkSuQmCC", "i_berry": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAYAAABWdVznAAAAWElEQVR4nGNgGKZgmore/6hpAf+xyTFiU+wgIMTAwMDAcODDO4asO5dQ1DDhUszAwMDgICDEME1F7z9ODcQAFA1Zdy4xHvjwDs7H5iSsYJqK3n90p9APAACQjhz8elGiaAAAAABJRU5ErkJggg==", "i_wheat": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAYAAABWdVznAAAAQ0lEQVR4nGNgIBEwYhNc1WX1H8YOKzuGogZDw6ouq/92Nmpw/qEjt1A0MZHqJJI1kOwHnODIEo//2MRp7wfaayAZAABvGBG/Y8F82wAAAABJRU5ErkJggg==", "i_fish": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAYAAABWdVznAAAAW0lEQVR4nGNgGHSAEZljlDLtP7qCc3OyUNQwIitWMTLCMPHOuXNwTUYp0/4zoiveV+fD4NS0BUMTDDChm4iuGB1gaCAEmBgYIB5DthbdOefmZDHC/EFyKNEeAAA5jCVIyxxnYQAAAABJRU5ErkJggg==", "i_seed": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAYAAABWdVznAAAAR0lEQVR4nGNgGPqAEcboKfH6T0hxSc82RhZkARszFZyKj5y6w8DAwMDARKqTsGpYtuEcaRqiAoxwasTrJJhGZIDiaZjHqAoAZ5IPfEYiwpQAAAAASUVORK5CYII=", "i_mush": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAYAAABWdVznAAAAWUlEQVR4nGNgGHSAEV1gmprOf3SxrFtX4OoY0RXbiIhgmHrkzRu4JiZCihkYGBhsRETgNsM1ZN26wnjkzRusGpBtoMwPMPDs0SW4Jik5PRQ1TJjK8QPaawAA78UhDw6/i6cAAAAASUVORK5CYII=", "i_coin": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAYAAABWdVznAAAAWklEQVR4nGNgoDVgxCa4ok7mP4wd0fQERQ0LNoUebioIMQaG/8gamdBNR1aMjQ/XsKJO5j+6JLImmO0YNhAC5GuIaHrCuGPXHayKduy6g9vT6JrQ+STHA8kAAH3KImxAlViPAAAAAElFTkSuQmCC", "i_egg": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAYAAABWdVznAAAAZ0lEQVR4nM2RsQ3AIAwEj8yTKmXECEzCQEzCCIiSin1MZQkRhypFrrKs/7f0hq8oOUnJSda9s4QA53UD0FsFwIfoAA4rXcXr/DCUnGQVqEkvmxd2/N3gQ3Ra40xvdV/rbLICTN4+PQAVZidGZjfQjwAAAABJRU5ErkJggg==", "i_meat": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAYAAABWdVznAAAAXUlEQVR4nGNgoDVgJKTg2aNL/2FsKTk9RiZSbWBBF2iyMvmPTSFWDU1WJv8NpCTw2gD3Az7FF569YKg7doaRgYGBgWQ/kK+h7tgZxgvPXuB1DgMDlnhADyVkxWQBAM20HLIXA/EYAAAAAElFTkSuQmCC"};
+</script>
+<script>
+
+"use strict";
+/* Bright Hollow v0.1 - a click-to-move fantasy sandbox RPG prototype
+   Built for Joe by Fo, Tue 24 Nov 2026. All data local, saves in this browser. */
+
+var TILE = 16, SCALE = 3, TS = TILE * SCALE;   // 48 px tiles on screen
+var MAPW = 48, MAPH = 48;
+var HOME = { x: 24, y: 26 };
+
+var IMG = {};        // sprite images by name
+var T = {};          // canvas contexts
+
+// ---------- small helpers ----------
+function rnd(a, b) { return a + Math.random() * (b - a); }
+function ri(a, b) { return Math.floor(rnd(a, b + 1)); }
+function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+function dist(x1, y1, x2, y2) { return Math.max(Math.abs(x1 - x2), Math.abs(y1 - y2)); } // chebyshev
+function euc(x1, y1, x2, y2) { var dx = x1 - x2, dy = y1 - y2; return Math.sqrt(dx * dx + dy * dy); }
+function chance(p) { return Math.random() < p; }
+function pick(arr) { return arr[ri(0, arr.length - 1)]; }
+
+// ---------- XP / skills ----------
+var SKILLS = ["woodcutting", "mining", "farming", "foraging", "fishing", "cooking", "combat"];
+var SKILL_LABEL = { woodcutting: "Woodcutting", mining: "Mining", farming: "Farming", foraging: "Foraging", fishing: "Fishing", cooking: "Cooking", combat: "Combat" };
+function xpNeed(l) { return Math.floor(35 * Math.pow(l, 1.55)); }
+
+// ---------- world data ----------
+var terr = [];        // terrain tile id per cell
+var objects = [];     // world objects: {id,type,x,y,state...}
+var blocked = [];     // boolean per cell
+var nextObjId = 1;
+
+var TERR = { GRASS1: 0, GRASS2: 1, GDARK1: 2, GDARK2: 3, PATH: 4, WATER: 5, TILLED: 6, FLOWERS: 7, TALL: 8, DIRT: 9 };
+var TERR_IMG = ["grass1", "grass2", "grassd1", "grassd2", "path", "water", "tilled", "flowers", "tallgrass", "dirtspot"];
+
+function tIdx(x, y) { return y * MAPW + x; }
+function inMap(x, y) { return x >= 0 && y >= 0 && x < MAPW && y < MAPH; }
+function terrainAt(x, y) { return terr[tIdx(x, y)]; }
+function setTerr(x, y, id) { terr[tIdx(x, y)] = id; }
+
+function isBlocked(x, y) {
+    if (!inMap(x, y)) return true;
+    if (blocked[tIdx(x, y)]) return true;
+    var t = terrainAt(x, y);
+    if (t === TERR.WATER) return true;
+    return false;
+}
+
+function addObj(o) {
+    o.id = nextObjId++;
+    objects.push(o);
+    if (o.solid) blocked[tIdx(o.x, o.y)] = true;
+    return o;
+}
+function objAt(x, y) {
+    for (var i = 0; i < objects.length; i++) { var o = objects[i]; if (o.x === x && o.y === y && !o.dead) return o; }
+    return null;
+}
+function objById(id) { for (var i = 0; i < objects.length; i++) if (objects[i].id === id) return objects[i]; return null; }
+
+// deterministic pseudo random for map gen
+function mulberry(seed) {
+    return function () {
+        seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+        var t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+        t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+        return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+}
+
+function genMap() {
+    var R = mulberry(20261124);
+    for (var y = 0; y < MAPH; y++) for (var x = 0; x < MAPW; x++) {
+        var dHome = euc(x, y, HOME.x, HOME.y);
+        var id = (R() < 0.5) ? TERR.GRASS1 : TERR.GRASS2;
+        if (dHome > 13) id = (R() < 0.5) ? TERR.GDARK1 : TERR.GDARK2;
+        else if (dHome > 10 && R() < 0.4) id = (R() < 0.5) ? TERR.GDARK1 : TERR.GDARK2;
+        if (R() < 0.02 && id !== TERR.GDARK1 && id !== TERR.GDARK2) id = TERR.FLOWERS;
+        if (R() < 0.03) id = TERR.TALL;
+        setTerr(x, y, id);
+    }
+    // pond SW of home
+    for (var y2 = 30; y2 <= 35; y2++) for (var x2 = 10; x2 <= 16; x2++) {
+        if (euc(x2, y2, 13, 32.5) < 3.2) setTerr(x2, y2, TERR.WATER);
+    }
+    // paths through camp
+    for (var x3 = 14; x3 <= 34; x3++) setTerr(x3, 26, TERR.PATH);
+    for (var y3 = 16; y3 <= 38; y3++) setTerr(24, y3, TERR.PATH);
+    // border rocks (impassable)
+    for (var x4 = 0; x4 < MAPW; x4++) { blocked[tIdx(x4, 0)] = true; blocked[tIdx(x4, MAPH - 1)] = true; }
+    for (var y4 = 0; y4 < MAPH; y4++) { blocked[tIdx(0, y4)] = true; blocked[tIdx(MAPW - 1, y4)] = true; }
+    // cave rock walls NE
+    for (var y5 = 2; y5 <= 12; y5++) for (var x5 = 34; x5 <= 46; x5++) {
+        if (euc(x5, y5, 40, 7) < 5.5) { blocked[tIdx(x5, y5)] = true; }
+    }
+    blocked[tIdx(40, 11)] = false; // mouth front clear
+    setTerr(40, 11, TERR.PATH);
+}
+
+// ---------- object placement ----------
+function placeWorld() {
+    // camp core (tier 1)
+    addObj({ type: "tent", x: 23, y: 24, solid: true });
+    addObj({ type: "campfire", x: 26, y: 25, solid: true });
+    // farm plots 3x2
+    for (var fy = 28; fy <= 29; fy++) for (var fx = 19; fx <= 21; fx++) {
+        var t = terrainAt(fx, fy);
+        addObj({ type: "farmplot", x: fx, y: fy, stage: 0, planted: 0, crop: null, solid: false });
+        setTerr(fx, fy, TERR.TILLED);
+    }
+    // storage + gear chest + blueprint board
+    addObj({ type: "storage", x: 21, y: 24, solid: true });
+    addObj({ type: "gearchest", x: 27, y: 24, solid: true });
+    addObj({ type: "board", x: 24, y: 23, solid: true });
+    // fishing spots at pond edge
+    addObj({ type: "fishspot", x: 13, y: 29, solid: false });
+    addObj({ type: "fishspot", x: 10, y: 33, solid: false });
+    // NPCs
+    addObj({ type: "npc", npc: "rowan", x: 27, y: 27, solid: true });
+    addObj({ type: "npc", npc: "maelis", x: 19, y: 27, solid: true });
+    addObj({ type: "npc", npc: "bram", x: 30, y: 24, solid: true });
+    // trees: dense in outer ring, sparse mid
+    var R = mulberry(777);
+    for (var y = 1; y < MAPH - 1; y++) for (var x = 1; x < MAPW - 1; x++) {
+        if (blocked[tIdx(x, y)] || objAt(x, y)) continue;
+        var d = euc(x, y, HOME.x, HOME.y);
+        var t = terrainAt(x, y);
+        if (t === TERR.WATER || t === TERR.PATH || t === TERR.TILLED) continue;
+        var p = 0;
+        if (d > 14) p = 0.34; else if (d > 10) p = 0.12; else if (d > 7) p = 0.05;
+        if (d < 7) continue; // clear meadow core
+        if (R() < p) addObj({ type: "tree", dark: d > 13, x: x, y: y, hp: 3, solid: true, respawn: 0 });
+    }
+    // rocks
+    for (var y6 = 1; y6 < MAPH - 1; y6++) for (var x6 = 1; x6 < MAPW - 1; x6++) {
+        if (blocked[tIdx(x6, y6)] || objAt(x6, y6)) continue;
+        var d6 = euc(x6, y6, HOME.x, HOME.y);
+        var t6 = terrainAt(x6, y6);
+        if (t6 === TERR.WATER || t6 === TERR.PATH || t6 === TERR.TILLED) continue;
+        if (d6 < 6) continue;
+        var p6 = 0;
+        if (d6 > 13) p6 = 0.05; else if (x6 > 28 && y6 < 26) p6 = 0.09; else p6 = 0.03;
+        if (R() < p6) addObj({ type: "rock", x: x6, y: y6, hp: 3, solid: true, respawn: 0 });
+    }
+    // berry bushes
+    for (var y7 = 1; y7 < MAPH - 1; y7++) for (var x7 = 1; x7 < MAPW - 1; x7++) {
+        if (blocked[tIdx(x7, y7)] || objAt(x7, y7)) continue;
+        var d7 = euc(x7, y7, HOME.x, HOME.y);
+        if (d7 < 4 || d7 > 16) continue;
+        var t7 = terrainAt(x7, y7);
+        if (t7 === TERR.WATER || t7 === TERR.PATH || t7 === TERR.TILLED) continue;
+        if (R() < 0.06) addObj({ type: "berrybush", x: x7, y: y7, solid: false, respawn: 0 });
+    }
+    // dig spots near home ring
+    for (var i = 0; i < 7; i++) {
+        var dx = ri(17, 31), dy = ri(31, 38);
+        if (isBlocked(dx, dy) || objAt(dx, dy)) continue;
+        addObj({ type: "digspot", x: dx, y: dy, solid: false, respawn: 0 });
+    }
+    // cave mouth + enemies in the dark fringe
+    addObj({ type: "cave", x: 40, y: 11, solid: true });
+    spawnEnemy("slime", 33, 14); spawnEnemy("slime", 36, 18); spawnEnemy("slime", 30, 40);
+    spawnEnemy("wisp", 42, 16); spawnEnemy("wisp", 14, 8);
+    // mini boss near cave
+    spawnEnemy("gloommaw", 41, 14, true);
+    // hidden chests + collectables (nudged off trees/rocks if needed)
+    function placeFree(x, y, mk) {
+      var tries = [[0, 0], [1, 0], [0, 1], [-1, 0], [0, -1], [1, 1], [-1, -1], [2, 0], [0, 2], [-2, 0], [0, -2]];
+      for (var t = 0; t < tries.length; t++) {
+        var xx = x + tries[t][0], yy = y + tries[t][1];
+        if (!inMap(xx, yy) || isBlocked(xx, yy) || objAt(xx, yy) || terrainAt(xx, yy) === TERR.WATER) continue;
+        mk(xx, yy); return;
+      }
+    }
+    placeFree(4, 5, function (x, y) { addObj({ type: "chest", hidden: true, x: x, y: y, opened: false, loot: "northern", solid: false }); });
+    placeFree(44, 43, function (x, y) { addObj({ type: "chest", hidden: true, x: x, y: y, opened: false, loot: "southern", solid: false }); });
+    placeFree(9, 40, function (x, y) { addObj({ type: "chest", hidden: true, x: x, y: y, opened: false, loot: "grove", solid: false }); });
+    placeFree(30, 38, function (x, y) { addObj({ type: "chest", hidden: true, x: x, y: y, opened: false, loot: "treeline", solid: false }); });
+    placeFree(37, 13, function (x, y) { addObj({ type: "chest", hidden: true, x: x, y: y, opened: false, loot: "cave", solid: false }); });
+    var coinSpots = [[6, 20], [36, 30], [18, 12], [30, 6], [8, 34]];
+    for (var c = 0; c < coinSpots.length; c++) { var cc = coinSpots[c]; placeFree(cc[0], cc[1], function (x, y) { addObj({ type: "coin", x: x, y: y, solid: false }); }); }
+    var mushSpots = [[12, 6], [22, 8], [43, 26], [16, 42], [38, 38], [5, 27], [44, 34], [26, 43]];
+    for (var m = 0; m < mushSpots.length; m++) { var mm = mushSpots[m]; placeFree(mm[0], mm[1], function (x, y) { addObj({ type: "mushroom", x: x, y: y, solid: false }); }); }
+    var noteSpots = [[10, 44], [45, 20], [4, 14]];
+    for (var nn = 0; nn < noteSpots.length; nn++) addObj({ type: "note", x: noteSpots[nn][0], y: noteSpots[nn][1], noteIdx: nn, solid: false });
+    // secret grove flowers SW
+    for (var gy = 39; gy <= 42; gy++) for (var gx = 6; gx <= 12; gx++) if (!objAt(gx, gy)) setTerr(gx, gy, TERR.FLOWERS);
+}
+
+function spawnEnemy(kind, x, y, boss) {
+    var stats = {
+        slime: { name: "Meadow Slime", hp: 8, dmg: 2, xp: 8, spr: "slime", drop: "goo" },
+        wisp: { name: "Gloom Wispling", hp: 12, dmg: 3, xp: 14, spr: "wisp", drop: "dust" },
+        gloommaw: { name: "Gloommaw", hp: 40, dmg: 4, xp: 60, spr: "wisp", drop: "dust", boss: true }
+    }[kind];
+    addObj({ type: "enemy", kind: kind, x: x, y: y, hp: stats.hp, maxhp: stats.hp, boss: !!boss,
+             stats: stats, solid: false, nextMove: 0, atkCd: 0, respawn: 0 });
+}
+
+// ---------- player ----------
+var player = {
+    x: HOME.x + 0.5, y: HOME.y + 2.5,   // px position (tile units)
+    tx: HOME.x + 0.5, ty: HOME.y + 2.5,
+    path: [], facing: 1, moving: false,
+    hp: 25, maxhp: 25,
+    skills: {}, inv: {}, storage: {}, bagCap: 24,
+    gear: {}, equipment: {}, gearChest: [],
+    pets: [], activePet: null, petPos: null,
+    quests: {}, flags: {}, coins: 0, collect: { coins: 0, mushrooms: 0, notes: [], chests: 0 },
+    action: null, hurtCd: 0
+};
+for (var s = 0; s < SKILLS.length; s++) player.skills[SKILLS[s]] = { xp: 0, lv: 1 };
+
+function skillLv(name) { return player.skills[name].lv; }
+function addXp(skill, amt) {
+    var sk = player.skills[skill]; sk.xp += amt;
+    while (sk.xp >= xpNeed(sk.lv)) { sk.xp -= xpNeed(sk.lv); sk.lv++; toast(SKILL_LABEL[skill] + " is now level " + sk.lv + "!", "level"); }
+    updateHud();
+}
+function gearStats() {
+    var st = { atk: 0, def: 0, spd: 0, luck: 0 };
+    for (var slot in player.equipment) {
+        var it = player.equipment[slot]; if (!it) continue;
+        for (var k in it.stats) st[k] += it.stats[k];
+    }
+    return st;
+}
+function bagCount() { var n = 0; for (var k in player.inv) n += player.inv[k]; return n; }
+function bagAdd(mat, n) {
+    n = n || 1;
+    var space = player.bagCap - bagCount();
+    if (space <= 0) { toast("Bag is full. Head back to camp and empty it in the storage chest.", "warn"); return false; }
+    var add = Math.min(n, space);
+    player.inv[mat] = (player.inv[mat] || 0) + add;
+    if (add < n) toast("Bag full, only picked up " + add + " " + MAT_LABEL[mat] + ". Empty it at the storage chest.", "warn");
+    updateHud(); return true;
+}
+var MAT_LABEL = { wood: "Wood", stone: "Stone", clay: "Clay", berry: "Berries", wheat: "Wheat", seeds: "Seeds", fish: "Fish", goo: "Slime goo", dust: "Wisp dust", mushroom: "Glowcaps", coin: "Coins", meal: "Trail meal", cookedfish: "Cooked fish" };
+var MAT_ORDER = ["wood", "stone", "clay", "berry", "wheat", "seeds", "fish", "mushroom", "goo", "dust", "coin", "meal", "cookedfish"];
+
+// ---------- gear catalog ----------
+var GEAR = [
+  { id: "wornblade", name: "Worn Blade", slot: "weapon", rar: 0, spr: "i_stone", stats: { atk: 2 }, flavor: "Notched but honest." },
+  { id: "druidstaff", name: "Druid Staff", slot: "weapon", rar: 1, spr: "i_wheat", stats: { atk: 1, luck: 1 }, flavor: "Warm to the touch." },
+  { id: "oakbow", name: "Oak Bow", slot: "weapon", rar: 1, spr: "i_wood", stats: { atk: 2, spd: 1 }, flavor: "Carved from fall timber." },
+  { id: "gloomcleaver", name: "Gloom Cleaver", slot: "weapon", rar: 3, spr: "i_stone", stats: { atk: 4 }, flavor: "Gloommaw's own edge. It hums in the dark." },
+  { id: "strawhat", name: "Straw Hat", slot: "head", rar: 0, spr: "i_wheat", stats: { luck: 1 }, flavor: "Sun-smart since forever." },
+  { id: "leathercap", name: "Leather Cap", slot: "head", rar: 1, spr: "i_clay", stats: { def: 1 }, flavor: "Better than nothing." },
+  { id: "runecirclet", name: "Rune Circlet", slot: "head", rar: 2, spr: "i_coin", stats: { def: 1, luck: 1 }, flavor: "Old script circles your brow." },
+  { id: "linenshirt", name: "Linen Shirt", slot: "chest", rar: 0, spr: "i_berry", stats: { def: 1 }, flavor: "Comfortable, if thin." },
+  { id: "leathervest", name: "Leather Vest", slot: "chest", rar: 1, spr: "i_clay", stats: { def: 2 }, flavor: "Smells of the tannery." },
+  { id: "gloomcloak", name: "Gloom Cloak", slot: "chest", rar: 3, spr: "i_mush", stats: { def: 2, luck: 1 }, flavor: "Woven from wispling mist." },
+  { id: "linenpants", name: "Linen Pants", slot: "legs", rar: 0, spr: "i_berry", stats: { def: 1 }, flavor: "Fields and fences." },
+  { id: "irongreaves", name: "Iron Greaves", slot: "legs", rar: 2, spr: "i_stone", stats: { def: 2 }, flavor: "Heavy but sure." },
+  { id: "workgloves", name: "Work Gloves", slot: "gloves", rar: 1, spr: "i_clay", stats: { spd: 1 }, flavor: "Grip like a promise." },
+  { id: "silkgloves", name: "Silk Gloves", slot: "gloves", rar: 2, spr: "i_coin", stats: { luck: 1 }, flavor: "Fingers light as thieving." },
+  { id: "sandals", name: "Wander Sandals", slot: "boots", rar: 0, spr: "i_wood", stats: { spd: 1 }, flavor: "The road likes them." },
+  { id: "leatherboots", name: "Leather Boots", slot: "boots", rar: 1, spr: "i_clay", stats: { def: 1, spd: 1 }, flavor: "Broken in by someone." },
+  { id: "swiftgreaves", name: "Swift Greaves", slot: "boots", rar: 2, spr: "i_fish", stats: { spd: 2 }, flavor: "The wind envies them." },
+  { id: "woodshield", name: "Wooden Shield", slot: "shield", rar: 0, spr: "i_wood", stats: { def: 2 }, flavor: "Dented but willing." },
+  { id: "ironbuckler", name: "Iron Buckler", slot: "shield", rar: 2, spr: "i_stone", stats: { def: 3 }, flavor: "A wall in the hand." },
+  { id: "wardenscharm", name: "Warden's Charm", slot: "gloves", rar: 3, spr: "i_coin", stats: { luck: 2 }, flavor: "The grove remembers its keeper." }
+];
+var RARITY = ["Common", "Uncommon", "Rare", "Epic"];
+var RAR_COLOR = ["#9aa4ad", "#7bc96f", "#5aa7e0", "#c07be0"];
+function gearById(id) { for (var i = 0; i < GEAR.length; i++) if (GEAR[i].id === id) return GEAR[i]; return null; }
+function makeGear(id) { var g = gearById(id); return { id: id, plus: 0, uid: "u" + (Math.random().toString(36).slice(2, 8)) }; }
+function gearName(inst) { var g = gearById(inst.id); return g.name + (inst.plus > 0 ? " +" + inst.plus : ""); }
+function gearStatsOf(inst) {
+    var g = gearById(inst.id); var s = {};
+    for (var k in g.stats) s[k] = g.stats[k] + inst.plus;
+    return s;
+}
+var STAT_LABEL = { atk: "Attack", def: "Defence", spd: "Speed", luck: "Luck" };
+
+// ---------- pets ----------
+var PETS = {
+  chick: { name: "Cheep", spr: "pet_chick", food: ["berry", "wheat", "seeds"], bonus: "gathers faster for you" },
+  wolfpup: { name: "Ash", spr: "pet_wolf", food: ["berry", "fish", "meal"], bonus: "guards your side" },
+  turtle: { name: "Mossy", spr: "egg", food: ["berry", "wheat", "mushroom"], bonus: "finds more where you dig" }
+};
+function petInst(kind) { return { kind: kind, name: PETS[kind].name, happy: 70, fed: 0, uid: "p" + (Math.random().toString(36).slice(2, 8)) }; }
+
+// ---------- quests ----------
+var QUESTS = {
+  firewood: { giver: "rowan", name: "Firewood for the hearth", desc: "Rowan needs 10 wood to keep the campfire burning through the dark.", need: { wood: 10 }, rewardText: "6 coins and Rowan's old blade", reward: function () { player.coins += 6; player.gearChest.push(makeGear("wornblade")); } },
+  harvest: { giver: "maelis", name: "First harvest", desc: "Maelis wants 5 wheat from the farm plots to prove the soil still lives.", need: { wheat: 5 }, rewardText: "a pet egg and 3 seeds", reward: function () { player.gearChest.push({ petegg: "chick" }); player.inv.seeds = (player.inv.seeds || 0) + 3; } },
+  tools: { giver: "bram", name: "Tools of the trade", desc: "Bram needs 8 stone and 4 clay to fix his workbench vice.", need: { stone: 8, clay: 4 }, rewardText: "his spare work gloves", reward: function () { player.gearChest.push(makeGear("workgloves")); } }
+};
+
+// ---------- pathfinding (BFS) ----------
+function findPath(sx, sy, gx, gy) {
+    if (!inMap(gx, gy) || isBlocked(gx, gy)) return null;
+    var prev = {}, seen = {}; var q = [[sx, sy]]; seen[tIdx(sx, sy)] = true;
+    var dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    while (q.length) {
+        var cur = q.shift();
+        if (cur[0] === gx && cur[1] === gy) {
+            var path = []; var c = cur;
+            while (!(c[0] === sx && c[1] === sy)) { path.push([c[0], c[1]]); c = prev[tIdx(c[0], c[1])]; }
+            path.reverse(); return path;
+        }
+        for (var d = 0; d < 4; d++) {
+            var nx = cur[0] + dirs[d][0], ny = cur[1] + dirs[d][1];
+            if (!inMap(nx, ny) || seen[tIdx(nx, ny)] || isBlocked(nx, ny)) continue;
+            seen[tIdx(nx, ny)] = true; prev[tIdx(nx, ny)] = cur; q.push([nx, ny]);
+        }
+    }
+    return null;
+}
+function adjacentTo(px, py, ox, oy) { return dist(Math.floor(px), Math.floor(py), ox, oy) <= 1 && !(Math.floor(px) === ox && Math.floor(py) === oy); }
+function walkTile(x, y) { return !isBlocked(x, y); }
+function nearestAdjacent(ox, oy) {
+    var best = null, bd = 1e9;
+    var cand = [[ox + 1, oy], [ox - 1, oy], [ox, oy + 1], [ox, oy - 1]];
+    for (var i = 0; i < cand.length; i++) {
+        var c = cand[i];
+        if (!walkTile(c[0], c[1])) continue;
+        var p = findPath(Math.floor(player.x), Math.floor(player.y), c[0], c[1]);
+        if (p && p.length < bd) { bd = p.length; best = p; }
+    }
+    return best;
+}
+
+
+// ---------- actions / gathering ----------
+var ACTION_DEFS = {
+  chop:  { skill: "woodcutting", dur: 2.2, verb: "Chopping" },
+  mine:  { skill: "mining",      dur: 2.4, verb: "Mining" },
+  dig:   { skill: "mining",      dur: 2.0, verb: "Digging" },
+  pick:  { skill: "foraging",    dur: 1.6, verb: "Picking" },
+  fish:  { skill: "fishing",     dur: 3.0, verb: "Fishing" },
+  plant: { skill: "farming",     dur: 1.2, verb: "Planting" },
+  harvest: { skill: "farming",   dur: 1.4, verb: "Harvesting" },
+  cook:  { skill: "cooking",     dur: 2.0, verb: "Cooking" },
+  open:  { skill: "foraging",    dur: 1.0, verb: "Opening" }
+};
+
+function speedMult() {
+  var st = gearStats();
+  var m = 1 + st.spd * 0.06;
+  var pet = activePetData();
+  if (pet && pet.happy > 90) m *= 1.10; else if (pet && pet.happy > 50) m *= 1.05;
+  return m;
+}
+function luckBonus() { var st = gearStats(); var p = activePetData(); var l = st.luck; if (p && p.kind === "turtle" && p.happy > 50) l += 1; return l; }
+
+function startAction(o, type) {
+  var def = ACTION_DEFS[type];
+  // requirement checks per object
+  if (type === "plant") {
+    if (!(player.inv.seeds > 0)) { toast("You need seeds. Forage berry bushes for a chance at more.", "warn"); return; }
+  }
+  if (type === "harvest" && o.stage !== 2) { toast("The wheat is still growing.", "warn"); return; }
+  if (type === "cook") { openCookMenu(o); return; }
+  if (type === "pick" && o.respawn > now()) { toast("The bush needs time to regrow.", "warn"); return; }
+  if ((type === "chop" || type === "mine" || type === "dig") && o.respawn > now()) { toast("Still regrowing.", "warn"); return; }
+  if (type === "open" && o.opened) { toast("Empty.", "warn"); return; }
+  if (type === "pick" && bagCount() >= player.bagCap) { toast("Bag is full. Empty it at the storage chest in camp.", "warn"); return; }
+  player.action = { objId: o.id, type: type, t: 0, dur: def.dur / speedMult() };
+}
+
+function finishAction(a) {
+  var o = objById(a.objId); if (!o) return;
+  var def = ACTION_DEFS[a.type];
+  var lk = luckBonus();
+  switch (a.type) {
+    case "chop": {
+      var n = 1 + (chance(0.35 + lk * 0.1) ? 1 : 0);
+      bagAdd("wood", n); addXp("woodcutting", 6); o.hp--;
+      if (o.hp <= 0) { o.dead = true; o.solid && (blocked[tIdx(o.x, o.y)] = false); o.respawn = now() + 90; addXp("woodcutting", 6); toast("+" + n + " wood", "item"); } else toast("+" + n + " wood", "item");
+      break; }
+    case "mine": {
+      var n2 = 1 + (chance(0.35 + lk * 0.1) ? 1 : 0);
+      bagAdd("stone", n2); addXp("mining", 7); o.hp--;
+      if (o.hp <= 0) { o.dead = true; blocked[tIdx(o.x, o.y)] = false; o.respawn = now() + 100; toast("+" + n2 + " stone" + (chance(0.15 + lk * 0.05) ? " and a coin" : ""), "item"); if (chance(0.15 + lk * 0.05)) player.coins++; }
+      break; }
+    case "dig": {
+      o.dead = true; o.respawn = now() + 120;
+      var n3 = 1 + (chance(0.3 + lk * 0.1) ? 1 : 0);
+      bagAdd("clay", n3); addXp("mining", 5);
+      if (chance(0.2 + lk * 0.06)) { player.coins += ri(1, 2); toast("Dug up clay and coins", "item"); } else toast("+" + n3 + " clay", "item");
+      break; }
+    case "pick": {
+      var n4 = 1 + (chance(0.4 + lk * 0.1) ? 1 : 0);
+      if (bagAdd("berry", n4)) { addXp("foraging", 5); o.respawn = now() + 70; if (chance(0.22 + lk * 0.05)) bagAdd("seeds", 1); }
+      break; }
+    case "fish": {
+      if (chance(0.6 + lk * 0.08)) { if (bagAdd("fish", 1)) { addXp("fishing", 9); toast("Caught a fish", "item"); } }
+      else { toast("It got away", "warn"); addXp("fishing", 2); }
+      break; }
+    case "plant": {
+      if (player.inv.seeds > 0) { player.inv.seeds--; o.crop = "wheat"; o.stage = 0; o.planted = now(); addXp("farming", 3); toast("Planted seeds", "item"); updateHud(); }
+      break; }
+    case "harvest": {
+      if (o.stage === 2) {
+        var n5 = ri(1, 2) + (chance(0.2 + lk * 0.08) ? 1 : 0);
+        if (bagAdd("wheat", n5)) { addXp("farming", 8); o.crop = null; o.stage = 0; o.planted = 0;
+          if (chance(0.25)) bagAdd("seeds", 1);
+          questProgressCheck(); }
+      }
+      break; }
+    case "open": {
+      o.opened = true; addXp("foraging", 10); player.collect.chests++;
+      openLootChest(o);
+      break; }
+  }
+}
+
+function openLootChest(o) {
+  var lootText = "";
+  if (o.loot === "northern") { player.gearChest.push(makeGear("runecirclet")); player.coins += 10; lootText = "Rune Circlet and 10 coins!"; }
+  else if (o.loot === "southern") { player.gearChest.push(makeGear("swiftgreaves")); player.coins += 8; lootText = "Swift Greaves and 8 coins!"; }
+  else if (o.loot === "grove") { player.gearChest.push(makeGear("wardenscharm")); player.pets.push(petInst("turtle")); lootText = "Warden's Charm, and something hatched..."; }
+  else if (o.loot === "treeline") { player.gearChest.push(makeGear("oakbow")); player.coins += 6; lootText = "Oak Bow and 6 coins!"; }
+  else if (o.loot === "cave") { player.gearChest.push(makeGear("ironbuckler")); player.coins += 12; lootText = "Iron Buckler and 12 coins!"; }
+  toast("Hidden chest: " + lootText, "loot");
+}
+
+// ---------- combat ----------
+function attackEnemy(e) {
+  var st = gearStats();
+  var dmg = Math.max(1, Math.round(1 + st.atk + skillLv("combat") * 0.5 + rnd(0, 2)));
+  e.hp -= dmg;
+  e.hurtFlash = 0.25;
+  floatText(e.x + 0.5, e.y + 0.2, "-" + dmg, "#ff8f6b");
+  if (e.hp <= 0) {
+    killEnemy(e);
+  } else {
+    toast(e.stats.name + ": " + e.hp + "/" + e.maxhp, "info");
+  }
+}
+function killEnemy(e) {
+  e.dead = true; e.respawn = now() + (e.boss ? 300 : 75);
+  addXp("combat", e.stats.xp);
+  var drops = [];
+  player.inv[e.stats.drop] = (player.inv[e.stats.drop] || 0) + ri(1, 2);
+  drops.push(MAT_LABEL[e.stats.drop]);
+  var c = ri(0, 3) + (e.boss ? 15 : 0); player.coins += c; if (c) drops.push(c + " coins");
+  if (e.boss) {
+    player.gearChest.push(makeGear("gloomcleaver"));
+    player.gearChest.push(makeGear("gloomcloak"));
+    player.pets.push(petInst("wolfpup"));
+    drops.push("Gloom Cleaver, Gloom Cloak and a howling pup joins you!");
+    toast("GOLOMMAW FELLED! Rare loot secured.", "loot");
+  } else if (chance(0.12 + luckBonus() * 0.03)) {
+    var pool = ["strawhat", "linenshirt", "leatherboots", "woodshield", "leathercap", "linenpants", "sandals"];
+    player.gearChest.push(makeGear(pick(pool)));
+    drops.push("a piece of gear!");
+  }
+  toast("Felled " + e.stats.name + ". Loot: " + drops.join(", "), "loot");
+  updateHud();
+}
+function enemyTurn(dt) {
+  for (var i = 0; i < objects.length; i++) {
+    var e = objects[i];
+    if (e.type !== "enemy" || e.dead) continue;
+    if (e.hurtFlash > 0) e.hurtFlash -= dt;
+    var d = euc(e.x + 0.5, e.y + 0.5, player.x, player.y);
+    if (d < 4.5 && !player.dead) {
+      e.aggro = true;
+      if (d > 1.1) {
+        // move toward player
+        var dx = Math.sign(player.x - (e.x + 0.5)), dy = Math.sign(player.y - (e.y + 0.5));
+        var nx = e.x, ny = e.y;
+        if (Math.abs(player.x - (e.x + 0.5)) > Math.abs(player.y - (e.y + 0.5))) nx += dx; else ny += dy;
+        if (!isBlocked(nx, ny)) { e.x = nx; e.y = ny; }
+      } else {
+        e.atkCd -= dt;
+        if (e.atkCd <= 0) {
+          e.atkCd = 1.5;
+          var st = gearStats();
+          var dmg = Math.max(1, Math.round(e.stats.dmg - st.def * 0.35 + rnd(-1, 1)));
+          player.hp -= dmg;
+          floatText(player.x, player.y - 0.4, "-" + dmg, "#ff5f5f");
+          if (player.hp <= 0) { playerKnockOut(); }
+        }
+      }
+    } else e.aggro = false;
+  }
+}
+function playerKnockOut() {
+  player.hp = 1; player.dead = true;
+  // drop half of each material at the spot
+  var lost = {};
+  for (var k in player.inv) { if (player.inv[k] > 1) { var half = Math.floor(player.inv[k] / 2); player.inv[k] -= half; lost[k] = half; } }
+  toast("You black out and wake at the campfire... some materials were scattered.", "bad");
+  player.x = 26.5; player.y = 26.5; player.tx = player.x; player.ty = player.y; player.path = [];
+  player.hp = Math.floor(player.maxhp / 2); player.dead = false;
+  // respawn enemies knocked back
+  updateHud();
+}
+
+// ---------- pets ----------
+function activePetData() {
+  if (!player.activePet) return null;
+  for (var i = 0; i < player.pets.length; i++) if (player.pets[i].uid === player.activePet) return player.pets[i];
+  return null;
+}
+function petTick(dt) {
+  var p = activePetData();
+  if (!p) return;
+  p.happy = Math.max(0, p.happy - dt * (1 / 60) * 4);   // decays ~1 per 15s
+}
+function feedPet(p, mat) {
+  if (!(player.inv[mat] > 0)) { toast("No " + MAT_LABEL[mat] + " in the bag.", "warn"); return; }
+  player.inv[mat]--;
+  var gain = { berry: 20, wheat: 25, seeds: 10, fish: 40, meal: 45, mushroom: 30 }[mat] || 10;
+  p.happy = Math.min(100, p.happy + gain);
+  p.fed++;
+  toast(p.name + " munches happily (" + Math.round(p.happy) + "%)", "item");
+  updateHud();
+}
+
+// ---------- NPCs & quests ----------
+var NPCS = {
+  rowan: {
+    name: "Elder Rowan", spr: "elder",
+    story: ["Rowan keeps the last campfire of Emberhollow burning.", "'The Gloom came out of the old mine one winter,' he says. 'It took the village lights, one house at a time.'", "'As long as this fire burns, folk have a place to come home to. That's why I stay.'"],
+    quest: "firewood"
+  },
+  maelis: {
+    name: "Druid Maelis", spr: "druid",
+    story: ["Maelis tends what is left of the old grove.", "'The forest was not always dark,' she murmurs. 'When the mine broke into the Underdeep, the Gloom seeped out like ink.'", "'Grow things here. Green things. The land remembers how to be bright.'"],
+    quest: "harvest"
+  },
+  bram: {
+    name: "Tinkerer Bram", spr: "tinker",
+    story: ["Bam's wagon is a nest of gears and half-fixed mine carts.", "'I came out to fix the carts,' he says, 'and stayed to fix everything else.'", "'Build me a proper workshop one day. I have designs for machines that could change everything.'"],
+    quest: "tools"
+  }
+};
+function questState(id) {
+  if (player.quests[id] === undefined) return "none";   // not started
+  return player.quests[id];                              // "active" | "done" | "claimed"
+}
+function questProgressCheck() {
+  for (var id in QUESTS) {
+    if (questState(id) !== "active") continue;
+    var q = QUESTS[id], ok = true;
+    for (var m in q.need) if ((player.inv[m] || 0) + (player.storage[m] || 0) < q.need[m]) ok = false;
+    if (ok) toast("Quest ready to turn in: " + q.name + ". Talk to " + NPCS[q.giver].name + ".", "quest");
+  }
+}
+function turnInQuest(id) {
+  var q = QUESTS[id];
+  if (questState(id) !== "active") return false;
+  for (var m in q.need) {
+    var have = (player.inv[m] || 0) + (player.storage[m] || 0);
+    if (have < q.need[m]) { toast("You still need " + (q.need[m] - have) + " more " + MAT_LABEL[m] + ".", "warn"); return false; }
+  }
+  // take from bag first, then storage
+  for (var m2 in q.need) {
+    var need = q.need[m2];
+    var fromBag = Math.min(need, player.inv[m2] || 0);
+    player.inv[m2] = (player.inv[m2] || 0) - fromBag; need -= fromBag;
+    if (need > 0) player.storage[m2] = (player.storage[m2] || 0) - need;
+  }
+  q.reward();
+  player.quests[id] = "claimed";
+  if (id === "firewood") toast("Quest complete: Firewood for the hearth. Worn Blade is in your gear chest.", "quest");
+  if (id === "harvest") toast("Quest complete: the egg cracks open... Cheep the chick imprints on you!", "quest");
+  if (id === "tools") toast("Quest complete: Tools of the trade. Bram's gloves are in your gear chest.", "quest");
+  updateHud();
+  return true;
+}
+
+// ---------- cooking ----------
+function openCookMenu(fire) {
+  var recipes = [
+    { out: "cookedfish", in: { fish: 1 }, xp: 8, label: "Cooked fish (heals 10)" },
+    { out: "meal", in: { wheat: 1, berry: 1 }, xp: 10, label: "Trail meal (heals 14)" }
+  ];
+  var html = "<h3>Campfire cooking</h3>";
+  for (var i = 0; i < recipes.length; i++) {
+    var r = recipes[i];
+    var have = true; for (var m in r.in) if ((player.inv[m] || 0) < r.in[m]) have = false;
+    html += "<div class='row'><span>" + r.label + "</span>" +
+      "<button class='btn" + (have ? "" : " off") + "' data-cook='" + i + "'>" + (have ? "Cook" : "Need: " + Object.keys(r.in).map(function (k) { return r.in[k] + " " + MAT_LABEL[k]; }).join(", ")) + "</button></div>";
+  }
+  html += "<div class='row'><span>Eat from the bag (raw)</span><button class='btn' data-eatraw='1'>Eat berries (+4)</button></div>";
+  openModal(html, cookMenuBind);
+  function cookMenuBind(root) {
+    root.querySelectorAll("[data-cook]").forEach(function (b) {
+      b.onclick = function () { doCook(recipes[parseInt(b.getAttribute("data-cook"))]); };
+    });
+    var er = root.querySelector("[data-eatraw]");
+    if (er) er.onclick = function () {
+      if (player.inv.berry > 0) { player.inv.berry--; heal(4); } else toast("No berries.", "warn");
+    };
+  }
+  function doCook(r) {
+    for (var m in r.in) if ((player.inv[m] || 0) < r.in[m]) { toast("Missing ingredients.", "warn"); return; }
+    for (var m2 in r.in) player.inv[m2] -= r.in[m2];
+    player.inv[r.out] = (player.inv[r.out] || 0) + 1;
+    addXp("cooking", r.xp);
+    toast("Cooked 1 " + MAT_LABEL[r.out], "item");
+    updateHud(); closeModal();
+  }
+}
+function heal(n) { player.hp = Math.min(player.maxhp, player.hp + n); floatText(player.x, player.y - 0.4, "+" + n, "#8fe388"); updateHud(); }
+function eatCooked(mat) {
+  if (!(player.inv[mat] > 0)) { toast("None in the bag.", "warn"); return; }
+  player.inv[mat]--;
+  heal(mat === "cookedfish" ? 10 : 14);
+  updateHud();
+}
+
+// ---------- buildings ----------
+var BUILDS = [
+  { id: "workbench", name: "Workbench", cost: { wood: 10, stone: 5 }, desc: "A bench for repairs and future crafting." },
+  { id: "storage", name: "Storage Chest", cost: { wood: 12, stone: 4 }, desc: "Another chest to stash materials (place near camp)." },
+  { id: "gearchest", name: "Gear Chest", cost: { wood: 10, clay: 2 }, desc: "A lockable chest just for gear and finds." },
+  { id: "petpen", name: "Pet Pen", cost: { wood: 14, stone: 6 }, desc: "A safe pen where your pets live and eat." },
+  { id: "hut", name: "Cottage", cost: { wood: 25, stone: 15, clay: 6 }, desc: "Upgrades the camp. A bed to rest, and pride." },
+  { id: "plot", name: "Farm Plot", cost: { wood: 4, clay: 2 }, desc: "Adds one more tilled plot for crops." }
+];
+var BUILT = [];  // build ids already placed
+function canAfford(cost) { for (var m in cost) if ((player.inv[m] || 0) + (player.storage[m] || 0) < cost[m]) return false; return true; }
+function payCost(cost) {
+  for (var m in cost) {
+    var need = cost[m];
+    var fromBag = Math.min(need, player.inv[m] || 0); player.inv[m] = (player.inv[m] || 0) - fromBag; need -= fromBag;
+    if (need > 0) player.storage[m] = (player.storage[m] || 0) - need;
+  }
+  updateHud();
+}
+function placeBuild(bid) {
+  var b = null; for (var i = 0; i < BUILDS.length; i++) if (BUILDS[i].id === bid) b = BUILDS[i];
+  if (!canAfford(b.cost)) { toast("Not enough materials in bag or storage.", "warn"); return; }
+  // find a free tile near camp
+  var spots = [];
+  for (var y = HOME.y - 6; y <= HOME.y + 6; y++) for (var x = HOME.x - 6; x <= HOME.x + 6; x++) {
+    if (!inMap(x, y) || isBlocked(x, y) || objAt(x, y)) continue;
+    if (terrainAt(x, y) === TERR.WATER) continue;
+    spots.push([x, y]);
+  }
+  if (!spots.length) { toast("No room near camp.", "warn"); return; }
+  spots.sort(function (a, c) { return euc(a[0], a[1], HOME.x, HOME.y) - euc(c[0], c[1], HOME.x, HOME.y); });
+  var s = spots[ri(0, Math.min(4, spots.length - 1))];
+  payCost(b.cost);
+  if (bid === "plot") { addObj({ type: "farmplot", x: s[0], y: s[1], stage: 0, planted: 0, crop: null, solid: false }); setTerr(s[0], s[1], TERR.TILLED); }
+  else addObj({ type: bid, x: s[0], y: s[1], solid: true });
+  BUILT.push(bid);
+  toast(b.name + " built!", "build");
+  closeModal();
+}
+
+// ---------- upgrades ----------
+var UPGRADE_COST = function (lv) { return { wood: 4 * (lv + 1), stone: 2 * (lv + 1), clay: lv >= 2 ? 2 : 0 }; };
+function upgradeGear(inst) {
+  if (inst.plus >= 5) { toast("Already at +5, the smith's limit for now.", "warn"); return; }
+  var c = UPGRADE_COST(inst.plus);
+  if (!canAfford(c)) { toast("Need " + Object.keys(c).map(function (k) { return c[k] + " " + MAT_LABEL[k]; }).filter(function (x) { return x.indexOf("0 ") !== 0; }).join(", ") + ".", "warn"); return; }
+  payCost(c);
+  inst.plus++;
+  toast(gearName(inst) + " upgraded!", "build");
+  renderGearChestUI(); updateHud();
+}
+
+// ---------- collectables / lore ----------
+var NOTES = {
+  0: "Page of Emberhollow's ledger: 'Third night the Gloom came. We barred the doors. The dogs would not stop growling at the mine.'",
+  1: "Maelis's field journal: 'Plant where the morning light lands. The grove was bright once, and can be again.'",
+  2: "A miner's tally scratched on slate: 'Day 12. Down past the seventh seam the air went wrong. Something answered back.'"
+};
+
+// ---------- save / load ----------
+var SAVE_KEY = "brighthollow_save_v1";
+function saveGame() {
+  try {
+    var data = {
+      player: {
+        x: player.x, y: player.y, hp: player.hp, skills: player.skills, inv: player.inv,
+        storage: player.storage, bagCap: player.bagCap, gearChest: player.gearChest,
+        equipment: player.equipment, pets: player.pets, activePet: player.activePet,
+        quests: player.quests, coins: player.coins, collect: player.collect
+      },
+      objects: objects.map(function (o) {
+        var keep = { type: o.type, x: o.x, y: o.y };
+        if (o.type === "farmplot") { keep.stage = o.stage; keep.crop = o.crop; keep.planted = o.planted; }
+        if (o.type === "tree" || o.type === "rock" || o.type === "digspot" || o.type === "berrybush") { keep.hp = o.hp; keep.respawn = o.respawn; keep.dead = o.dead; keep.dark = o.dark; keep.solid = true; }
+        if (o.type === "chest") { keep.opened = o.opened; keep.loot = o.loot; keep.hidden = true; }
+        if (o.type === "coin" || o.type === "mushroom" || o.type === "note") { keep.dead = o.dead; keep.noteIdx = o.noteIdx; }
+        if (o.type === "npc") { keep.npc = o.npc; keep.solid = true; }
+        if (o.type === "enemy") { keep.kind = o.kind; keep.hp = o.hp; keep.respawn = o.respawn; keep.dead = o.dead; keep.boss = o.boss; }
+        if (o.type === "fishspot") keep.solid = false;
+        if (o.type === "cave") keep.solid = true;
+        if (o.type === "campfire" || o.type === "tent" || o.type === "storage" || o.type === "gearchest" || o.type === "board" || o.type === "workbench" || o.type === "petpen" || o.type === "hut") keep.solid = true;
+        return keep;
+      }),
+      built: BUILT
+    };
+    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+  } catch (e) { console.log("save failed", e); }
+}
+function loadGame() {
+  try {
+    var raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return false;
+    var data = JSON.parse(raw);
+    // rebuild world from scratch then overlay
+    terr = []; blocked = []; objects = []; nextObjId = 1;
+    for (var i = 0; i < MAPW * MAPH; i++) { terr.push(0); blocked.push(false); }
+    genMap();
+    data.objects.forEach(function (k) {
+      if (k.dead && (k.type === "coin" || k.type === "mushroom" || k.type === "note")) return;
+      var copy = JSON.parse(JSON.stringify(k));
+      if (copy.type === "enemy") {
+        var stats = {
+          slime: { name: "Meadow Slime", hp: 8, dmg: 2, xp: 8, spr: "slime", drop: "goo" },
+          wisp: { name: "Gloom Wispling", hp: 12, dmg: 3, xp: 14, spr: "wisp", drop: "dust" },
+          gloommaw: { name: "Gloommaw", hp: 40, dmg: 4, xp: 60, spr: "wisp", drop: "dust", boss: true }
+        }[copy.kind];
+        copy.stats = stats; copy.maxhp = stats.hp;
+      }
+      var o = addObj(copy);
+      if (o.dead && (o.type === "tree" || o.type === "rock")) blocked[tIdx(o.x, o.y)] = false;
+    });
+    var p = data.player;
+    player.x = p.x; player.y = p.y; player.tx = p.x; player.ty = p.y;
+    player.hp = p.hp; player.skills = p.skills; player.inv = p.inv; player.storage = p.storage;
+    player.bagCap = p.bagCap; player.gearChest = p.gearChest; player.equipment = p.equipment;
+    player.pets = p.pets; player.activePet = p.activePet; player.quests = p.quests;
+    player.coins = p.coins; player.collect = p.collect;
+    BUILT = data.built || [];
+    // clear terrain under farmplots and paths already set by genMap
+    return true;
+  } catch (e) { console.log("load failed", e); return false; }
+}
+
+// ---------- clock ----------
+var gameTime = 0;
+function now() { return gameTime; }
+
+
+// ---------- rendering ----------
+var canvas, ctx;
+var camX = 0, camY = 0;
+var SPR = {};
+var floats = [];   // floating texts {x,y,text,color,t}
+var toastsEl;
+
+function loadSprites(next) {
+  var names = Object.keys(ASSETS), loaded = 0;
+  names.forEach(function (n) {
+    var im = new Image();
+    im.onload = function () { loaded++; if (loaded === names.length) next(); };
+    im.src = ASSETS[n];
+    SPR[n] = im;
+  });
+}
+
+function spr(name) { return SPR[name]; }
+
+function darknessAt(x, y) {
+  // 0 = bright meadow, up to 0.82 deep gloom
+  var d = euc(x, y, HOME.x, HOME.y);
+  var v = 0;
+  if (d < 8) v = 0; else if (d < 13) v = (d - 8) / 5 * 0.45; else v = 0.45 + Math.min((d - 13) / 8, 1) * 0.37;
+  // cave area is darkest
+  var dc = euc(x, y, 40, 7);
+  if (dc < 7) v = Math.max(v, 0.82 - dc * 0.04);
+  return Math.min(v, 0.85);
+}
+
+function worldToScreen(wx, wy) {
+  return [Math.round((wx * TS) - camX), Math.round((wy * TS) - camY)];
+}
+
+function draw() {
+  var W = canvas.width, H = canvas.height;
+  // camera centered on player
+  camX = player.x * TS - W / 2; camY = player.y * TS - H / 2;
+  camX = clamp(camX, 0, MAPW * TS - W); camY = clamp(camY, 0, MAPH * TS - H);
+  var x0 = Math.floor(camX / TS) - 1, y0 = Math.floor(camY / TS) - 1;
+  var x1 = x0 + Math.ceil(W / TS) + 2, y1 = y0 + Math.ceil(H / TS) + 2;
+  // terrain
+  for (var y = y0; y <= y1; y++) for (var x = x0; x <= x1; x++) {
+    if (!inMap(x, y)) continue;
+    var t = TERR_IMG[terrainAt(x, y)];
+    ctx.drawImage(SPR[t], Math.round(x * TS - camX), Math.round(y * TS - camY), TS, TS);
+  }
+  // gather drawable objects (y-sorted with player)
+  var drawables = [];
+  for (var i = 0; i < objects.length; i++) {
+    var o = objects[i];
+    if (o.dead && !(o.respawn > 0)) continue;
+    if (o.x < x0 - 2 || o.x > x1 + 2 || o.y < y0 - 3 || o.y > y1 + 3) continue;
+    drawables.push(o);
+  }
+  var petP = activePetData();
+  var me = { type: "_player", x: Math.floor(player.x), y: Math.floor(player.y) };
+  if (petP) drawables.push({ type: "_pet", x: player.x, y: player.y, pet: petP });
+  drawables.push(me);
+  drawables.sort(function (a, b) { return a.y - b.y; });
+  for (var d = 0; d < drawables.length; d++) {
+    var ob = drawables[d];
+    drawObj(ob);
+  }
+  // action progress bar
+  if (player.action) {
+    var o2 = objById(player.action.objId);
+    if (o2) {
+      var p = clamp(player.action.t / player.action.dur, 0, 1);
+      var sx = Math.round(o2.x * TS - camX), sy = Math.round(o2.y * TS - camY);
+      ctx.fillStyle = "rgba(20,24,20,0.75)";
+      ctx.fillRect(sx + 6, sy - 12, TS - 12, 7);
+      ctx.fillStyle = "#7bc96f";
+      ctx.fillRect(sx + 7, sy - 11, (TS - 14) * p, 5);
+      ctx.fillStyle = "#fff"; ctx.font = "8px monospace";
+      ctx.fillText(ACTION_DEFS[player.action.type].verb, sx + 2, sy - 16);
+    }
+  }
+  // floats
+  for (var f = 0; f < floats.length; f++) {
+    var fl = floats[f];
+    var fx = Math.round(fl.x * TS - camX), fy = Math.round((fl.y + (1 - fl.t / 1.2) * -0.6) * TS - camY);
+    ctx.globalAlpha = clamp(fl.t / 0.4, 0, 1);
+    ctx.fillStyle = "rgba(0,0,0,0.55)"; ctx.font = "bold 11px monospace";
+    ctx.fillText(fl.text, fx + 1, fy + 1);
+    ctx.fillStyle = fl.color; ctx.fillText(fl.text, fx, fy);
+    ctx.globalAlpha = 1;
+  }
+  // darkness overlay, tile-by-tile (cheap: per tile alpha)
+  for (var y2 = y0; y2 <= y1; y2++) for (var x2 = x0; x2 <= x1; x2++) {
+    if (!inMap(x2, y2)) continue;
+    var dk = darknessAt(x2 + 0.5, y2 + 0.5);
+    if (dk > 0.01) {
+      ctx.fillStyle = "rgba(10,12,28," + dk.toFixed(2) + ")";
+      ctx.fillRect(Math.round(x2 * TS - camX), Math.round(y2 * TS - camY), TS, TS);
+    }
+  }
+  // torch glow around player at night/dark
+  var dkP = darknessAt(player.x, player.y);
+  if (dkP > 0.15) {
+    var px = Math.round(player.x * TS - camX), py = Math.round(player.y * TS - camY);
+    var g = ctx.createRadialGradient(px, py, TS * 0.6, px, py, TS * 3.2);
+    g.addColorStop(0, "rgba(255,220,150,0.14)");
+    g.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(px - TS * 3.4, py - TS * 3.4, TS * 6.8, TS * 6.8);
+  }
+  // click marker
+  if (marker.t > 0) {
+    marker.t -= 0.016;
+    var mx = Math.round(marker.x * TS - camX), my = Math.round(marker.y * TS - camY);
+    ctx.strokeStyle = "rgba(255,255,255," + clamp(marker.t, 0, 1) + ")";
+    ctx.strokeRect(mx + 4, my + 4, TS - 8, TS - 8);
+  }
+  // enemy hp bars
+  for (var e2 = 0; e2 < objects.length; e2++) {
+    var en = objects[e2];
+    if (en.type !== "enemy" || en.dead) continue;
+    if (en.hp < en.maxhp || en.aggro) {
+      var esx = Math.round(en.x * TS - camX), esy = Math.round(en.y * TS - camY) - 10;
+      ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.fillRect(esx + 2, esy, TS - 4, 5);
+      ctx.fillStyle = en.boss ? "#c07be0" : "#e05a5a";
+      ctx.fillRect(esx + 3, esy + 1, (TS - 6) * clamp(en.hp / en.maxhp, 0, 1), 3);
+    }
+  }
+}
+
+function drawObj(o) {
+  var name = null;
+  switch (o.type) {
+    case "tree": name = o.dark ? "treed" : "tree"; break;
+    case "stump": name = "stump"; break;
+    case "rock": name = "rock"; break;
+    case "berrybush": name = "berry"; break;
+    case "digspot": name = "dirtspot"; break;
+    case "fishspot": {
+      var fsx = Math.round(o.x * TS - camX), fsy = Math.round(o.y * TS - camY);
+      ctx.drawImage(SPR["water"], fsx, fsy, TS, TS);
+      ctx.strokeStyle = "rgba(255,255,255,0.8)"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(fsx + TS / 2, fsy + TS / 2, TS * 0.22, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(fsx + TS / 2, fsy + TS / 2, TS * 0.32, 0.3, 2.2); ctx.stroke();
+      return; }
+    case "farmplot": {
+      var fpx = Math.round(o.x * TS - camX), fpy = Math.round(o.y * TS - camY);
+      ctx.drawImage(SPR["tilled"], fpx, fpy, TS, TS);
+      if (o.crop === "wheat" && !o.dead) {
+        ctx.drawImage(SPR["wheat" + wheatStage(o)], fpx, fpy, TS, TS);
+      } else {
+        ctx.fillStyle = "rgba(90,60,40,0.55)";
+        ctx.fillRect(fpx + TS * 0.35, fpy + TS * 0.35, TS * 0.3, TS * 0.3);
+      }
+      return; }
+    case "tent": name = "tent"; break;
+    case "campfire": name = "campfire"; break;
+    case "storage": name = "store_chest"; break;
+    case "gearchest": name = "gear_chest"; break;
+    case "board": name = "blueprint"; break;
+    case "workbench": name = "workbench"; break;
+    case "petpen": name = "pet_pen"; break;
+    case "hut": name = "hut"; break;
+    case "cave": name = "cave"; break;
+    case "npc": name = NPCS[o.npc].spr; break;
+    case "enemy": name = o.stats.spr; break;
+    case "coin": name = "coin"; break;
+    case "mushroom": name = "mushroom"; break;
+    case "note": name = "note"; break;
+    case "chest": name = o.opened ? "store_chest" : "gear_chest"; break;
+    case "_player": {
+      var sxp = Math.round(player.x * TS - camX - SPR["player"].width * SCALE / 2);
+      var syp = Math.round(player.y * TS - camY + TS / 2 - SPR["player"].height * SCALE) - 6;
+      if (player.moving) syp += Math.sin(gameTime * 14) < 0 ? 1 : 0;
+      ctx.drawImage(SPR["player"], sxp, syp, SPR["player"].width * SCALE, SPR["player"].height * SCALE);
+      return; }
+    case "_pet": {
+      var p = o.pet, ps = PETS[p.kind].spr;
+      var px = player.x - player.facing * 0.9, py = player.y + 0.1;
+      var sx2 = Math.round(px * TS - camX - SPR[ps].width * SCALE / 2);
+      var sy2 = Math.round(py * TS - camY + TS / 2 - SPR[ps].height * SCALE);
+      ctx.drawImage(SPR[ps], sx2, sy2, SPR[ps].width * SCALE, SPR[ps].height * SCALE);
+      return; }
+  }
+  if (!name || o.dead || o.taken) return;
+  var im = SPR[name];
+  if (!im) return;
+  var dx0 = Math.round(o.x * TS - camX + (TS - im.width * SCALE) / 2);
+  var dy0 = Math.round(o.y * TS - camY + TS - im.height * SCALE);
+  ctx.drawImage(im, dx0, dy0, im.width * SCALE, im.height * SCALE);
+  if (o.hurtFlash > 0) { ctx.globalAlpha = 0.45; ctx.fillStyle = "#fff"; ctx.fillRect(dx0, dy0, im.width * SCALE, im.height * SCALE); ctx.globalAlpha = 1; }
+}
+function wheatStage(o) {
+  var age = (now() - o.planted) / 1000;
+  if (age > 150) return 2; else if (age > 75) return 1; return 0;
+}
+function floatText(x, y, text, color) { floats.push({ x: x, y: y, text: text, color: color, t: 1.2 }); }
+
+// ---------- input ----------
+var marker = { x: 0, y: 0, t: 0 };
+var QUEUED = null; // click target pending arrival {objId or tile}
+function onClick(ev) {
+  ev.preventDefault();
+  var rect = canvas.getBoundingClientRect();
+  var sxp = (ev.clientX - rect.left) * (canvas.width / rect.width);
+  var syp = (ev.clientY - rect.top) * (canvas.height / rect.height);
+  var wx = Math.floor((sxp + camX) / TS), wy = Math.floor((syp + camY) / TS);
+  if (!inMap(wx, wy)) return;
+  marker.x = wx; marker.y = wy; marker.t = 0.5;
+  var o = objAt(wx, wy);
+  // enemy can be attacked while adjacent; click enemy anywhere
+  if (o && o.type === "enemy" && !o.dead) { QUEUED = { kind: "attack", objId: o.id }; }
+  else if (o && interactiveType(o)) { QUEUED = { kind: "interact", objId: o.id }; }
+  else { QUEUED = { kind: "walk", x: wx, y: wy }; }
+  processQueued();
+}
+function interactiveType(o) {
+  switch (o.type) {
+    case "tree": return "chop";
+    case "rock": return "mine";
+    case "digspot": return "dig";
+    case "berrybush": return "pick";
+    case "fishspot": return "fish";
+    case "farmplot": return o.crop === "wheat" && wheatStage(o) === 2 ? "harvest" : (o.crop ? null : "plant");
+    case "campfire": return "cook";
+    case "chest": return "open";
+    case "coin": return "collect";
+    case "mushroom": return "collect";
+    case "note": return "collect";
+    case "npc": return "talk";
+    case "storage": return "storage";
+    case "gearchest": return "gear";
+    case "board": return "board";
+    case "workbench": return "workbench";
+    case "petpen": return "pets";
+    case "hut": return "hut";
+    case "tent": return "rest";
+    case "cave": return "cave";
+  }
+  return null;
+}
+function processQueued() {
+  if (!QUEUED) return;
+  var pq = QUEUED;
+  if (pq.kind === "walk") {
+    var p = findPath(Math.floor(player.x), Math.floor(player.y), pq.x, pq.y);
+    if (p) { player.path = p; player.moving = true; }
+    QUEUED = null; return;
+  }
+  var o = objById(pq.objId);
+  if (!o || o.dead) { QUEUED = null; return; }
+  if (adjacentTo(player.x, player.y, o.x, o.y)) { actOn(o, pq.kind); QUEUED = null; return; }
+  var p2 = nearestAdjacent(o.x, o.y);
+  if (!p2) { toast("Can't reach that.", "warn"); QUEUED = null; return; }
+  player.path = p2; player.moving = true;   // keep QUEUED for arrival
+}
+function actOn(o, kind) {
+  var it = interactiveType(o);
+  if (kind === "attack") { player.attackTarget = o.id; attackEnemy(o); player.atkCd = 0.9; return; }
+  switch (it) {
+    case "chop": case "mine": case "dig": case "pick": case "fish": case "plant": case "harvest": case "open":
+      startAction(o, it); break;
+    case "cook": openCookMenu(o); break;
+    case "collect":
+      if (o.type === "coin") { player.coins++; player.collect.coins++; o.dead = true; toast("Ancient coin found! " + player.collect.coins + "/5", "loot"); }
+      if (o.type === "mushroom") { bagAdd("mushroom", 1); player.collect.mushrooms++; o.dead = true; toast("Glowcap mushroom pocketed (" + player.collect.mushrooms + "/8)", "item"); }
+      if (o.type === "note") { if (player.collect.notes.indexOf(o.noteIdx) < 0) { player.collect.notes.push(o.noteIdx); showNote(o.noteIdx); } o.dead = true; }
+      break;
+    case "talk": openNpcDialog(o); break;
+    case "storage": openStorageUI(); break;
+    case "gear": openGearChestUI(); break;
+    case "board": openBuildUI(); break;
+    case "workbench": toast("The workbench hums. Crafting comes to Bright Hollow soon.", "info"); break;
+    case "pets": openPetsUI(); break;
+    case "hut": toast("Home. It smells like wood smoke and good things to come.", "info"); break;
+    case "rest": heal(player.maxhp); toast("You nap in the shade. Fully rested.", "info"); break;
+    case "cave": toast("The cave mouth breathes cold air. Something big waits below... (deep dungeon coming)", "warn"); break;
+  }
+}
+function showNote(idx) {
+  var n = NOTES[idx];
+  openModal("<h3>Weathered page</h3><p class='lore'>" + n + "</p><button class='btn' data-x='1'>Put it away</button>", function (r) {
+    r.querySelector("[data-x]").onclick = closeModal;
+  });
+}
+
+// ---------- movement ----------
+function moveTick(dt) {
+  if (player.action) {
+    player.action.t += dt;
+    if (player.action.t >= player.action.dur) { var a = player.action; player.action = null; finishAction(a); }
+    return;
+  }
+  if (player.atkCd > 0) player.atkCd -= dt;
+  if (!player.action && player.atkCd <= 0 && player.attackTarget) {
+    var te = objById(player.attackTarget);
+    if (te && te.type === "enemy" && !te.dead) {
+      if (adjacentTo(player.x, player.y, te.x, te.y)) { attackEnemy(te); player.atkCd = 0.9; }
+    } else player.attackTarget = null;
+  }
+  if (!player.moving || !player.path.length) { player.moving = false; return; }
+  var spd = 2.1 * speedMult();   // tiles per second
+  var target = player.path[0];
+  var txp = target[0] + 0.5, typ = target[1] + 0.5;
+  var dx = txp - player.x, dy = typ - player.y;
+  var d = Math.sqrt(dx * dx + dy * dy);
+  if (d <= spd * dt) {
+    player.x = txp; player.y = typ;
+    player.path.shift();
+    if (!player.path.length) {
+      player.moving = false;
+      if (QUEUED) processQueued();
+    }
+  } else {
+    player.x += dx / d * spd * dt; player.y += dy / d * spd * dt;
+    player.facing = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 1 : -1) : player.facing;
+  }
+}
+
+// ---------- respawn ticks ----------
+function respawnTick() {
+  for (var i = 0; i < objects.length; i++) {
+    var o = objects[i];
+    if (o.dead && o.respawn && now() > o.respawn) {
+      o.dead = false;
+      if (o.type === "tree") { o.hp = 3; blocked[tIdx(o.x, o.y)] = true; }
+      if (o.type === "rock") { o.hp = 3; blocked[tIdx(o.x, o.y)] = true; }
+      if (o.type === "enemy") { o.hp = o.maxhp; }
+      o.respawn = 0;
+    }
+  }
+}
+
+
+// ---------- UI ----------
+function el(tag, cls, html) { var e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; }
+var modalEl, hudEl;
+function openModal(html, bind) {
+  closeModal();
+  modalEl.innerHTML = "<div class='panel'>" + html + "<button class='xbtn' data-close='1'>✕</button></div>";
+  modalEl.style.display = "flex";
+  modalEl.querySelector("[data-close]").onclick = closeModal;
+  if (bind) bind(modalEl.querySelector(".panel"));
+}
+function closeModal() { modalEl.style.display = "none"; modalEl.innerHTML = ""; }
+
+function updateHud() {
+  var st = gearStats();
+  document.getElementById("hpbar").style.width = (100 * clamp(player.hp / player.maxhp, 0, 1)) + "%";
+  document.getElementById("hptext").textContent = Math.ceil(player.hp) + " / " + player.maxhp;
+  document.getElementById("coins").textContent = player.coins;
+  document.getElementById("bagbtn").textContent = "🎒 " + bagCount() + "/" + player.bagCap;
+  // quest tracker
+  var qh = "";
+  for (var id in QUESTS) {
+    var qs = questState(id);
+    if (qs === "active") {
+      var q = QUESTS[id], parts = [];
+      for (var m in q.need) {
+        var have = (player.inv[m] || 0) + (player.storage[m] || 0);
+        parts.push(MAT_LABEL[m] + " " + Math.min(have, q.need[m]) + "/" + q.need[m]);
+      }
+      qh += "<div class='qitem'>" + q.name + "<br><span>" + parts.join(" · ") + "</span></div>";
+    } else if (qs === "claimed") qh += "<div class='qitem done'>✔ " + q.name + "</div>";
+  }
+  document.getElementById("quests").innerHTML = qh;
+  document.getElementById("gearbtn").textContent = "⚔ " + Object.keys(player.equipment).filter(function (k) { return player.equipment[k]; }).length;
+}
+
+function openBagUI() {
+  var html = "<h3>Bag</h3><div class='sub'>Everything you carry. Dump it in the storage chest at camp.</div>";
+  var any = false;
+  MAT_ORDER.forEach(function (m) {
+    if (player.inv[m] > 0) {
+      any = true;
+      html += "<div class='row'><span class='mat'><img class='icon' src='" + ASSETS["i_" + (m === "coin" ? "coin" : m)] + "'> " + MAT_LABEL[m] + " × " + player.inv[m] + "</span>" +
+        (m === "cookedfish" || m === "meal" ? "<button class='btn' data-eat='" + m + "'>Eat</button>" : "") + "</div>";
+    }
+  });
+  if (!any) html += "<p class='sub'>Empty. Go chop, mine, dig or forage.</p>";
+  openModal(html, function (root) {
+    root.querySelectorAll("[data-eat]").forEach(function (b) {
+      b.onclick = function () { eatCooked(b.getAttribute("data-eat")); openBagUI(); };
+    });
+  });
+}
+
+function openStorageUI() {
+  var html = "<h3>Storage Chest</h3><div class='sub'>Camp storage for materials. The bag holds " + player.bagCap + " — leave the rest here.</div>";
+  html += "<div class='row'><span>Move everything from bag to storage</span><button class='btn' data-dep='all'>Deposit all</button></div>";
+  MAT_ORDER.forEach(function (m) {
+    var a = player.inv[m] || 0, s = player.storage[m] || 0;
+    if (a > 0 || s > 0) {
+      html += "<div class='row'><span class='mat'>" + MAT_LABEL[m] + "</span><span>bag " + a + " · stored " + s + "</span>" +
+        "<span><button class='btn' data-d='" + m + "'>→</button><button class='btn' data-w='" + m + "'>←</button></span></div>";
+    }
+  });
+  openModal(html, function (root) {
+    root.querySelector("[data-dep]").onclick = function () {
+      MAT_ORDER.forEach(function (m) { if (player.inv[m] > 0) { player.storage[m] = (player.storage[m] || 0) + player.inv[m]; player.inv[m] = 0; } });
+      toast("Bag emptied into storage", "item"); updateHud(); openStorageUI();
+    };
+    root.querySelectorAll("[data-d]").forEach(function (b) {
+      b.onclick = function () { var m = b.getAttribute("data-d"); if (player.inv[m] > 0) { player.storage[m] = (player.storage[m] || 0) + 1; player.inv[m]--; } openStorageUI(); };
+    });
+    root.querySelectorAll("[data-w]").forEach(function (b) {
+      b.onclick = function () { var m = b.getAttribute("data-w"); if (player.storage[m] > 0) { player.inv[m] = (player.inv[m] || 0) + 1; player.storage[m]--; } openStorageUI(); };
+    });
+  });
+}
+
+function gearItemHtml(inst, actions) {
+  var g = gearById(inst.id), st = gearStatsOf(inst);
+  var statTxt = Object.keys(st).map(function (k) { return STAT_LABEL[k] + " " + (st[k] > 0 ? "+" : "") + st[k]; }).join(", ");
+  return "<div class='gearitem' style='border-color:" + RAR_COLOR[g.rar] + "'><span class='gname' style='color:" + RAR_COLOR[g.rar] + "'>" + gearName(inst) + "</span>" +
+    "<span class='gstat'>" + statTxt + " · " + RARITY[g.rar] + "</span><span class='gflav'>" + g.flavor + "</span><span class='gact'>" + actions + "</span></div>";
+}
+function openGearChestUI() {
+  var html = "<h3>Gear Chest</h3><div class='sub'>Your collection. Equip it, upgrade it, show it off.</div>";
+  if (!player.gearChest.length) html += "<p class='sub'>Empty for now. Enemies, quests and hidden chests drop gear.</p>";
+  player.gearChest.forEach(function (inst, i) {
+    if (inst.petegg) { html += "<div class='gearitem' style='border-color:#c07be0'><span class='gname'>A warm egg</span><span class='gstat'>It's starting to crack...</span><span class='gflav'>Take it to the pet pen.</span><span class='gact'><button class='btn' data-hatch='" + i + "'>Hatch</button></span></div>"; return; }
+    html += gearItemHtml(inst, "<button class='btn' data-eq='" + i + "'>Equip</button><button class='btn' data-up='" + i + "'>Upgrade</button>");
+  });
+  openModal(html, function (root) {
+    root.querySelectorAll("[data-eq]").forEach(function (b) { b.onclick = function () { equipFromChest(parseInt(b.getAttribute("data-eq"))); openGearChestUI(); }; });
+    root.querySelectorAll("[data-up]").forEach(function (b) { b.onclick = function () { upgradeGear(player.gearChest[parseInt(b.getAttribute("data-up"))]); }; });
+    root.querySelectorAll("[data-hatch]").forEach(function (b) {
+      b.onclick = function () {
+        var i2 = parseInt(b.getAttribute("data-hatch"));
+        var inst = player.gearChest[i2];
+        if (inst.petegg && !player.pets.some(function (p) { return p.kind === inst.petegg; })) {
+          player.pets.push(petInst(inst.petegg)); player.gearChest.splice(i2, 1);
+          toast("It hatched! " + PETS[inst.petegg].name + " looks up at you.", "loot");
+          openGearChestUI();
+        } else { toast("You already have this one.", "warn"); }
+      };
+    });
+  });
+}
+function equipFromChest(i) {
+  var inst = player.gearChest[i];
+  var g = gearById(inst.id);
+  var cur = player.equipment[g.slot];
+  player.equipment[g.slot] = inst;
+  player.gearChest.splice(i, 1);
+  if (cur) player.gearChest.push(cur);
+  toast(gearName(inst) + " equipped", "item");
+  updateHud();
+}
+function openGearUI() {
+  var html = "<h3>Your gear</h3><div class='sub'>Equipped now. Stats from gear stack with your skills.</div>";
+  var SLOTS = ["weapon", "head", "chest", "legs", "gloves", "boots", "shield"];
+  var st = gearStats();
+  html += "<div class='statline'>Attack " + (1 + st.atk) + " · Defence " + st.def + " · Speed " + st.spd + " · Luck " + st.luck + "</div>";
+  SLOTS.forEach(function (slot) {
+    var inst = player.equipment[slot];
+    if (inst) {
+      html += gearItemHtml(inst, "<button class='btn' data-un='" + slot + "'>Unequip</button><button class='btn' data-upg='" + slot + "'>Upgrade</button>");
+    } else html += "<div class='gearitem empty'><span class='gname'>" + slot + "</span><span class='gstat'>empty</span></div>";
+  });
+  openModal(html, function (root) {
+    root.querySelectorAll("[data-un]").forEach(function (b) {
+      b.onclick = function () { var slot = b.getAttribute("data-un"); player.gearChest.push(player.equipment[slot]); player.equipment[slot] = null; updateHud(); openGearUI(); };
+    });
+    root.querySelectorAll("[data-upg]").forEach(function (b) {
+      b.onclick = function () { var slot = b.getAttribute("data-upg"); upgradeGear(player.equipment[slot]); openGearUI(); };
+    });
+  });
+}
+function openSkillsUI() {
+  var html = "<h3>Skills</h3>";
+  SKILLS.forEach(function (s) {
+    var sk = player.skills[s];
+    var pct = Math.round(100 * sk.xp / xpNeed(sk.lv));
+    html += "<div class='skillrow'><span>" + SKILL_LABEL[s] + " <b>Lv " + sk.lv + "</b></span><div class='skbar'><div style='width:" + pct + "%'></div></div><span class='skxp'>" + sk.xp + "/" + xpNeed(sk.lv) + "</span></div>";
+  });
+  html += "<h3 style='margin-top:14px'>Collection</h3><div class='sub'>The world hides 5 ancient coins, 8 glowcaps, 3 pages and 5 hidden chests.</div>" +
+    "<div class='statline'>Coins " + player.collect.coins + "/5 · Glowcaps " + player.collect.mushrooms + "/8 · Pages " + player.collect.notes.length + "/3 · Chests " + player.collect.chests + "/5</div>";
+  openModal(html, function (root) {
+    root.querySelectorAll("[data-happy]").forEach(function (b) {
+      b.onclick = function () {
+        var kind = b.getAttribute("data-happy");
+        var p = player.pets.filter(function (q) { return q.kind === kind; })[0];
+        var menu = ["berry", "wheat", "fish", "seeds"].map(function (m) {
+          return "<button class='btn' data-feed='" + m + "' " + (player.inv[m] > 0 ? "" : "disabled") + ">" + MAT_LABEL[m] + " ×" + (player.inv[m] || 0) + "</button>";
+        }).join(" ");
+        openModal("<h3>Feed " + p.name + "</h3><div class='sub'>" + p.name + " " + PETS[kind].bonus + " when happy.</div><div class='row'>" + menu + "</div>", function (r2) {
+          r2.querySelectorAll("[data-feed]").forEach(function (b2) {
+            b2.onclick = function () { feedPet(p, b2.getAttribute("data-feed")); closeModal(); };
+          });
+        });
+      };
+    });
+  });
+}
+function openPetsUI() {
+  var html = "<h3>Pet Pen</h3><div class='sub'>Your pets live here. Feed them to keep them happy — happy pets help you gather.</div>";
+  if (!player.pets.length) html += "<p class='sub'>No pets yet. Maelis has an egg for a good farmer, and something big guards rarer friends.</p>";
+  player.pets.forEach(function (p) {
+    var pd = PETS[p.kind];
+    var happyCol = p.happy > 70 ? "#7bc96f" : p.happy > 35 ? "#e0b95a" : "#e05a5a";
+    html += "<div class='gearitem' style='border-color:" + happyCol + "'><span class='gname'><img class='icon' src='" + ASSETS[pd.spr] + "'> " + p.name + "</span>" +
+      "<span class='gstat'>Happiness " + Math.round(p.happy) + "%</span><span class='gflav'>" + pd.bonus + "</span>" +
+      "<span class='gact'><button class='btn' data-feed='" + p.kind + "'>Feed</button>" +
+      (player.activePet === p.uid ? "<button class='btn'>Following you</button>" : "<button class='btn' data-sum='" + p.uid + "'>Call to me</button>") + "</span></div>";
+  });
+  html += "<div class='sub' style='margin-top:8px'>Mounts get their own stable here soon.</div>";
+  openModal(html, function (root) {
+    root.querySelectorAll("[data-feed]").forEach(function (b) {
+      b.onclick = function () {
+        var kind = b.getAttribute("data-feed");
+        var p = player.pets.filter(function (q) { return q.kind === kind; })[0];
+        var menu = ["berry", "wheat", "fish", "seeds"].map(function (m) {
+          return "<button class='btn' data-fm='" + m + "' " + (player.inv[m] > 0 ? "" : "disabled") + ">" + MAT_LABEL[m] + " ×" + (player.inv[m] || 0) + "</button>";
+        }).join(" ");
+        openModal("<h3>Feed " + p.name + "</h3><div class='row'>" + menu + "</div>", function (r2) {
+          r2.querySelectorAll("[data-fm]").forEach(function (b2) {
+            b2.onclick = function () { feedPet(p, b2.getAttribute("data-fm")); closeModal(); };
+          });
+        });
+      };
+    });
+    root.querySelectorAll("[data-sum]").forEach(function (b) {
+      b.onclick = function () { player.activePet = b.getAttribute("data-sum"); toast("Your pet trots after you.", "item"); openPetsUI(); };
+    });
+  });
+}
+function openNpcDialog(o) {
+  var npc = NPCS[o.npc];
+  var q = QUESTS[npc.quest];
+  var html = "<h3>" + npc.name + "</h3>";
+  html += npc.story.map(function (s) { return "<p class='lore'>" + s + "</p>"; }).join("");
+  var qs = questState(npc.quest);
+  if (qs === "none") html += "<div class='row'><span><b>Quest:</b> " + q.name + "<br><span class='sub'>" + q.desc + "</span><br><span class='sub'>Reward: " + q.rewardText + "</span></span><button class='btn' data-qa='1'>Accept</button></div>";
+  else if (qs === "active") html += "<div class='row'><span><b>Quest:</b> " + q.name + " (in progress)</span><button class='btn' data-qt='1'>Turn in</button></div>";
+  else html += "<div class='row'><span><b>Quest:</b> " + q.name + " ✔ done</span></div>";
+  openModal(html, function (root) {
+    var qa = root.querySelector("[data-qa]"); if (qa) qa.onclick = function () { player.quests[npc.quest] = "active"; toast("Quest accepted: " + q.name, "quest"); updateHud(); closeModal(); };
+    var qt = root.querySelector("[data-qt]"); if (qt) qt.onclick = function () { turnInQuest(npc.quest); closeModal(); };
+  });
+}
+function openBuildUI() {
+  var html = "<h3>Blueprint Board</h3><div class='sub'>Build what the camp needs. Materials come from bag and storage.</div>";
+  BUILDS.forEach(function (b) {
+    var cost = Object.keys(b.cost).map(function (k) { return b.cost[k] + " " + MAT_LABEL[k]; }).join(", ");
+    var done = BUILT.indexOf(b.id) >= 0 && b.id !== "plot" && b.id !== "storage";
+    html += "<div class='row'><span><b>" + b.name + "</b> <span class='sub'>(" + cost + ")</span><br><span class='sub'>" + b.desc + "</span></span>" +
+      "<button class='btn" + (done ? " off" : "") + "' data-b='" + b.id + "'>" + (done ? "Built" : "Build") + "</button></div>";
+  });
+  openModal(html, function (root) {
+    root.querySelectorAll("[data-b]").forEach(function (b) { b.onclick = function () { placeBuild(b.getAttribute("data-b")); }; });
+  });
+}
+
+// ---------- toasts ----------
+function toast(msg, kind) {
+  var t = el("div", "toast " + (kind || ""), msg);
+  toastsEl.appendChild(t);
+  setTimeout(function () { t.classList.add("out"); }, 3200);
+  setTimeout(function () { t.remove(); }, 3800);
+  while (toastsEl.children.length > 4) toastsEl.firstChild.remove();
+}
+
+// ---------- boot ----------
+function init() {
+  canvas = document.getElementById("game");
+  ctx = canvas.getContext("2d");
+  modalEl = document.getElementById("modal");
+  toastsEl = document.getElementById("toasts");
+  resize();
+  loadSprites(bootWorld);
+}
+function bootWorld() {
+  var hadSave = loadGame();
+  if (!hadSave) {
+    genMap(); placeWorld();
+    // starter gear
+    player.equipment = { weapon: null, head: null, chest: null, legs: null, gloves: null, boots: null, shield: null };
+    player.inv.seeds = 3;
+    toast("Welcome to Bright Hollow. Click anywhere to walk; click things to use them.", "info");
+    setTimeout(function () { toast("Talk to Elder Rowan by the fire to start.", "quest"); }, 2500);
+  } else {
+    toast("Welcome back. The campfire kept burning.", "info");
+  }
+  updateHud();
+  bindUi();
+  requestAnimationFrame(loop);
+  setInterval(saveGame, 10000);
+  setInterval(function () { respawnTick(); }, 1000);
+}
+function resize() {
+  canvas.width = Math.max(320, Math.floor(window.innerWidth));
+  canvas.height = Math.max(320, Math.floor(window.innerHeight));
+  canvas.style.width = "100%"; canvas.style.height = "100%";
+}
+window.addEventListener("resize", resize);
+
+var lastT = 0;
+function loop(t) {
+  var dt = Math.min(0.05, (t - lastT) / 1000 || 0.016);
+  lastT = t;
+  gameTime += dt * 1000;
+  moveTick(dt);
+  enemyTurn(dt);
+  petTick(dt);
+  for (var i = floats.length - 1; i >= 0; i--) { floats[i].t -= dt; if (floats[i].t <= 0) floats.splice(i, 1); }
+  draw();
+  requestAnimationFrame(loop);
+}
+function bindUi() {
+  canvas.addEventListener("pointerdown", onClick);
+  document.getElementById("bagbtn").onclick = openBagUI;
+  document.getElementById("gearbtn").onclick = openGearUI;
+  document.getElementById("skillsbtn").onclick = openSkillsUI;
+  document.getElementById("savebtn").onclick = function () { saveGame(); toast("Saved", "item"); };
+}
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
+
+</script>
+</body>
+</html>
