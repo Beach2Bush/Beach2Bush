@@ -1421,7 +1421,7 @@ function init() {
   }
   updateHud();
   bindUi();
-  requestAnimationFrame(loop);
+  loadSprites(function () { requestAnimationFrame(loop); });
 }
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
 
