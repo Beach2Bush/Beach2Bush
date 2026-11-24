@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Beach 2 Bush Photography</title>
+<meta name="description" content="Photography from the beach to the bush. Sunshine Coast, Queensland.">
+<link rel="icon" type="image/png" href="images/badge.png">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="hero">
+  <img src="images/logo.png" alt="Beach 2 Bush Photography" class="logo">
+  <p class="tagline">From the beach to the bush. Sunshine Coast, Queensland.</p>
+</header>
+
+<nav>
+  <a href="#gallery">Gallery</a>
+  <a href="#about">About</a>
+  <a href="#contact">Contact</a>
+</nav>
+
+<main>
+  <section id="gallery">
+    <h2>Gallery</h2>
+    <div class="grid" id="grid"></div>
+    <p class="note">New shots added as they come off the camera.</p>
+  </section>
+
+  <section id="about">
+    <h2>About</h2>
+    <p>Beach 2 Bush Photography is where the Coast's best light ends up. Shot around the Sunshine Coast and out west, posted fresh on Instagram at <a href="https://www.instagram.com/beach2bushonline/" target="_blank">@beach2bushonline</a>.</p>
+  </section>
+
+  <section id="contact">
+    <h2>Contact</h2>
+    <p>Prints, collaborations or a chat about a shot: find me on Instagram or drop a line.</p>
+    <a class="button" href="https://www.instagram.com/beach2bushonline/" target="_blank">Follow on Instagram</a>
+  </section>
+</main>
+
+<footer>
+  <img src="images/badge.png" alt="B2B" class="badge">
+  <p>&copy; 2026 Beach 2 Bush Photography</p>
+</footer>
+
+<script>
+// Drop photos in images/gallery/ named in order and list them here, or just fill this array.
+const photos = [
+  // "images/gallery/IMG_9605.jpg",
+  // "images/gallery/IMG_7807.jpg"
+];
+const grid = document.getElementById('grid');
+if (photos.length === 0) {
+  grid.innerHTML = '<p class="empty">First gallery drop coming soon.</p>';
+} else {
+  photos.forEach(src => {
+    const fig = document.createElement('figure');
+    fig.innerHTML = '<img loading="lazy" src="' + src + '" alt="Photograph"><figcaption></figcaption>';
+    grid.appendChild(fig);
+  });
+}
+</script>
+</body>
+</html>
