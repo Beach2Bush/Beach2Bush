@@ -1402,6 +1402,27 @@ function bindUi() {
   document.getElementById("skillsbtn").onclick = openSkillsUI;
   document.getElementById("savebtn").onclick = function () { saveGame(); toast("Saved", "item"); };
 }
+function init() {
+  canvas = document.getElementById("game");
+  ctx = canvas.getContext("2d");
+  modalEl = document.getElementById("modal");
+  toastsEl = document.getElementById("toasts");
+  resize();
+  var hadSave = loadGame();
+  if (!hadSave) {
+    genMap(); placeWorld();
+    // starter gear
+    player.equipment = { weapon: null, head: null, chest: null, legs: null, gloves: null, boots: null, shield: null };
+    player.inv.seeds = 3;
+    toast("Welcome to Bright Hollow. Click anywhere to walk; click things to use them.", "info");
+    setTimeout(function () { toast("Talk to Elder Rowan by the fire to start.", "quest"); }, 2500);
+  } else {
+    toast("Welcome back. The campfire kept burning.", "info");
+  }
+  updateHud();
+  bindUi();
+  requestAnimationFrame(loop);
+}
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
 
 </script>
