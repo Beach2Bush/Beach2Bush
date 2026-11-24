@@ -279,7 +279,7 @@ var player = {
     tx: HOME.x + 0.5, ty: HOME.y + 2.5,
     path: [], facing: 1, moving: false,
     hp: 25, maxhp: 25,
-    skills: {}, inv: {}, storage: {}, bagCap: 24,
+    skills: {}, inv: {}, storage: {}, bagCap: 24, bagLvl: 0, tools: { axe: 0, pick: 0, rod: 0 },
     gear: {}, equipment: {}, gearChest: [],
     pets: [], activePet: null, petPos: null,
     quests: {}, flags: {}, coins: 0, collect: { coins: 0, mushrooms: 0, notes: [], chests: 0 },
@@ -433,8 +433,14 @@ function startAction(o, type) {
   if ((type === "chop" || type === "mine" || type === "dig") && o.respawn > now()) { toast("Still regrowing.", "warn"); return; }
   if (type === "open" && o.opened) { toast("Empty.", "warn"); return; }
   if (type === "pick" && bagCount() >= player.bagCap) { toast("Bag is full. Empty it at the storage chest in camp.", "warn"); return; }
-  player.action = { objId: o.id, type: type, t: 0, dur: def.dur / speedMult() };
+  player.action = { objId: o.id, type: type, t: 0, dur: def.dur / speedMult() / toolSpeed(type) };
 }
+
+function toolSpeed(type) {
+  var k = type === "chop" ? "axe" : (type === "mine" || type === "dig") ? "pick" : type === "fish" ? "rod" : null;
+  return 1 + (k ? toolLvl(k) * 0.35 : 0);
+}
+function toolLvl(k) { return (player.tools && player.tools[k]) || 0; }
 
 function finishAction(a) {
   var o = objById(a.objId); if (!o) return;
@@ -442,12 +448,12 @@ function finishAction(a) {
   var lk = luckBonus();
   switch (a.type) {
     case "chop": {
-      var n = 1 + (chance(0.35 + lk * 0.1) ? 1 : 0);
+      var n = 1 + toolLvl("axe") + (chance(0.35 + lk * 0.1) ? 1 : 0);
       bagAdd("wood", n); addXp("woodcutting", 6); o.hp--;
       if (o.hp <= 0) { o.dead = true; o.solid && (blocked[tIdx(o.x, o.y)] = false); o.respawn = now() + 90; addXp("woodcutting", 6); toast("+" + n + " wood", "item"); } else toast("+" + n + " wood", "item");
       break; }
     case "mine": {
-      var n2 = 1 + (chance(0.35 + lk * 0.1) ? 1 : 0);
+      var n2 = 1 + toolLvl("pick") + (chance(0.35 + lk * 0.1) ? 1 : 0);
       bagAdd("stone", n2); addXp("mining", 7); o.hp--;
       if (o.hp <= 0) { o.dead = true; blocked[tIdx(o.x, o.y)] = false; o.respawn = now() + 100; toast("+" + n2 + " stone" + (chance(0.15 + lk * 0.05) ? " and a coin" : ""), "item"); if (chance(0.15 + lk * 0.05)) player.coins++; }
       break; }
@@ -462,7 +468,7 @@ function finishAction(a) {
       if (bagAdd("berry", n4)) { addXp("foraging", 5); o.respawn = now() + 70; if (chance(0.22 + lk * 0.05)) bagAdd("seeds", 1); }
       break; }
     case "fish": {
-      if (chance(0.6 + lk * 0.08)) { if (bagAdd("fish", 1)) { addXp("fishing", 9); toast("Caught a fish", "item"); } }
+      if (chance(0.6 + lk * 0.08 + toolLvl("rod") * 0.12)) { if (bagAdd("fish", 1 + toolLvl("rod"))) { addXp("fishing", 9); toast("Caught a fish", "item"); } }
       else { toast("It got away", "warn"); addXp("fishing", 2); }
       break; }
     case "plant": {
@@ -748,7 +754,7 @@ function saveGame() {
     var data = {
       player: {
         x: player.x, y: player.y, hp: player.hp, skills: player.skills, inv: player.inv,
-        storage: player.storage, bagCap: player.bagCap, gearChest: player.gearChest,
+        storage: player.storage, bagCap: player.bagCap, bagLvl: player.bagLvl, tools: player.tools, gearChest: player.gearChest,
         equipment: player.equipment, pets: player.pets, activePet: player.activePet,
         quests: player.quests, coins: player.coins, collect: player.collect
       },
@@ -796,7 +802,7 @@ function loadGame() {
     var p = data.player;
     player.x = p.x; player.y = p.y; player.tx = p.x; player.ty = p.y;
     player.hp = p.hp; player.skills = p.skills; player.inv = p.inv; player.storage = p.storage;
-    player.bagCap = p.bagCap; player.gearChest = p.gearChest; player.equipment = p.equipment;
+    player.bagCap = p.bagCap; player.bagLvl = p.bagLvl || 0; player.tools = p.tools || { axe: 0, pick: 0, rod: 0 }; player.gearChest = p.gearChest; player.equipment = p.equipment;
     player.pets = p.pets; player.activePet = p.activePet; player.quests = p.quests;
     player.coins = p.coins; player.collect = p.collect;
     BUILT = data.built || [];
@@ -1079,7 +1085,7 @@ function actOn(o, kind) {
     case "storage": openStorageUI(); break;
     case "gear": openGearChestUI(); break;
     case "board": openBuildUI(); break;
-    case "workbench": toast("The workbench hums. Crafting comes to Bright Hollow soon.", "info"); break;
+    case "workbench": openWorkbenchUI(); break;
     case "pets": openPetsUI(); break;
     case "hut": toast("Home. It smells like wood smoke and good things to come.", "info"); break;
     case "rest": heal(player.maxhp); toast("You nap in the shade. Fully rested.", "info"); break;
@@ -1190,6 +1196,42 @@ function openBagUI() {
   openModal(html, function (root) {
     root.querySelectorAll("[data-eat]").forEach(function (b) {
       b.onclick = function () { eatCooked(b.getAttribute("data-eat")); openBagUI(); };
+    });
+  });
+}
+
+function wbCost(kind) {
+  if (kind === "bag") return { wood: 8 * (player.bagLvl + 1), stone: 4 * (player.bagLvl + 1) };
+  var base = { axe: { wood: 8, stone: 5 }, pick: { stone: 6, wood: 4 }, rod: { wood: 8, clay: 4 } }[kind];
+  var m = Math.pow(2, toolLvl(kind));
+  var c = {}; for (var k in base) c[k] = Math.round(base[k] * m);
+  return c;
+}
+function costText(c) { var p = []; for (var k in c) { if (c[k]) p.push(c[k] + " " + MAT_LABEL[k]); } return p.join(" + "); }
+function canPay(c) { for (var k in c) { if (c[k] > (player.inv[k] || 0)) return false; } return true; }
+function doPay(c) { for (var k in c) { if (c[k]) player.inv[k] -= c[k]; } updateHud(); }
+
+function openWorkbenchUI() {
+  var html = "<h3>Workbench</h3><div class='sub'>Vice squeaks, hammer waits. Upgrade your kit here.</div>";
+  html += "<div class='row'><span>Bigger bag, +" + (player.bagCap) + " &rarr; +" + (player.bagCap + 8) + " slots</span><button class='btn' data-up='bag'>" + costText(wbCost("bag")) + "</button></div>";
+  var names = { axe: "Iron axe", pick: "Steel pick", rod: "Good rod" };
+  ["axe", "pick", "rod"].forEach(function (k) {
+    var lv = toolLvl(k);
+    if (lv >= 3) html += "<div class='row'><span>" + names[k] + " Lv" + lv + " &mdash; maxed</span><span class='sub'>top tier</span></div>";
+    else html += "<div class='row'><span>" + names[k] + " Lv" + lv + " &rarr; Lv" + (lv + 1) + "</span><button class='btn' data-up='" + k + "'>" + costText(wbCost(k)) + "</button></div>";
+  });
+  html += "<div class='sub'>Better axe = more wood per swing. Better pick = more stone. Better rod = fish bite more, more per catch. Upgrades also make the job faster.</div>";
+  openModal(html, function (root) {
+    root.querySelectorAll("[data-up]").forEach(function (b) {
+      b.onclick = function () {
+        var kind = b.getAttribute("data-up");
+        var cost = wbCost(kind);
+        if (!canPay(cost)) { toast("Not enough materials: need " + costText(cost), "warn"); return; }
+        doPay(cost);
+        if (kind === "bag") { player.bagLvl++; player.bagCap += 8; toast("Bag upgraded! Now holds " + player.bagCap + ".", "build"); }
+        else { player.tools[kind] = toolLvl(kind) + 1; var names2 = { axe: "Iron axe", pick: "Steel pick", rod: "Good rod" }; toast(names2[kind] + " upgraded to Lv" + player.tools[kind] + "!", "build"); }
+        saveGame(); openWorkbenchUI();
+      };
     });
   });
 }
@@ -1366,7 +1408,9 @@ function openBuildUI() {
 function toast(msg, kind) {
   var t = el("div", "toast " + (kind || ""), msg);
   toastsEl.appendChild(t);
-
+  while (toastsEl.children.length > 3) toastsEl.removeChild(toastsEl.firstChild);
+  setTimeout(function () { t.style.opacity = "0"; }, 2400);
+  setTimeout(function () { if (t.parentNode) toastsEl.removeChild(t); }, 3000);
 }
 function resize() {
   canvas.width = Math.max(320, Math.floor(window.innerWidth));
