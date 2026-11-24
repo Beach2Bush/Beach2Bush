@@ -1397,6 +1397,13 @@ function bootWorld() {
   setInterval(function () { loop(performance.now()); }, 33);
   setInterval(saveGame, 10000);
   setInterval(function () { respawnTick(); }, 1000);
+  setTimeout(function () {
+    var d = document.getElementById("help");
+    d.textContent = "SPR:" + Object.keys(SPR).length + " cv:" + canvas.width + "x" + canvas.height +
+      " fr:" + frames + " cam:" + Math.round(camX) + "," + Math.round(camY) +
+      " p:" + (isFinite(player.x) ? player.x.toFixed(1) : "NaN") + "," + (isFinite(player.y) ? player.y.toFixed(1) : "NaN") +
+      " objs:" + objects.length + " t0:" + (terr.length ? terrainAt(20, 20) : "empty");
+  }, 2000);
 }
 function resize() {
   canvas.width = Math.max(320, Math.floor(window.innerWidth));
