@@ -1168,9 +1168,9 @@ function updateHud() {
   // quest tracker
   var qh = "";
   for (var id in QUESTS) {
-    var qs = questState(id);
+    var q = QUESTS[id], qs = questState(id);
     if (qs === "active") {
-      var q = QUESTS[id], parts = [];
+      var parts = [];
       for (var m in q.need) {
         var have = (player.inv[m] || 0) + (player.storage[m] || 0);
         parts.push(MAT_LABEL[m] + " " + Math.min(have, q.need[m]) + "/" + q.need[m]);
