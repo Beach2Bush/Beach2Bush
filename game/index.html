@@ -1394,7 +1394,7 @@ function bootWorld() {
   }
   updateHud();
   bindUi();
-  requestAnimationFrame(loop);
+  setInterval(function () { loop(performance.now()); }, 33);
   setInterval(saveGame, 10000);
   setInterval(function () { respawnTick(); }, 1000);
 }
